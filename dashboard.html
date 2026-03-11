@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditor DIAN - MicroSaaS B2B</title>
+    <!-- Solo fuentes e iconos externos visuales para Premium Design, nada de librerías JS o CSS UI de terceros de instalación -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --border-color: #334155;
+            
+            /* Status Colors */
+            --status-alto-bg: #450a0a;
+            --status-alto-text: #fca5a5;
+            --status-alto-border: #991b1b;
+            
+            --status-medio-bg: #422006;
+            --status-medio-text: #fcd34d;
+            --status-medio-border: #92400e;
+            
+            --status-revisar-bg: #422006;
+            --status-revisar-text: #fde047;
+            --status-revisar-border: #a16207;
+            
+            --status-bajo-bg: #052e16;
+            --status-bajo-text: #86efac;
+            --status-bajo-border: #15803d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(12px);
+            padding: 1.2rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .container {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+        }
+
+        /* Uploader Area */
+        .upload-panel {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            height: fit-content;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .upload-panel h2 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        .upload-panel p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            background: rgba(15, 23, 42, 0.3);
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .drop-zone-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            display: block;
+            color: var(--accent);
+        }
+
+        .file-input {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 1.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            font-size: 1rem;
+        }
+
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn:disabled {
+            background-color: var(--border-color);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Progress Area */
+        .progress-container {
+            margin-top: 1.5rem;
+            display: none;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .progress-bar-bg {
+            background-color: var(--border-color);
+            border-radius: 99px;
+            height: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            height: 100%;
+            width: 0%;
+            border-radius: 99px;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+            animation: shimmer 1.5s infinite;
+            transform: skewX(-20deg);
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) skewX(-20deg); }
+            100% { transform: translateX(200%) skewX(-20deg); }
+        }
+
+        /* Results Area */
+        .results-panel {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .results-panel.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(15, 23, 42, 0.4);
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .kpi-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        
+        .kpi-val {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .kpi-card.alto .kpi-val { color: #fca5a5; }
+        .kpi-card.medio .kpi-val { color: #fcd34d; }
+        .kpi-card.bajo .kpi-val { color: #86efac; }
+
+        .table-container {
+            flex: 1;
+            overflow: auto;
+            padding: 0 1.5rem 1.5rem 1.5rem;
+        }
+        
+        .table-header-row {
+            position: sticky;
+            top: 0;
+            background-color: var(--card-bg);
+            z-index: 10;
+            padding-top: 1.5rem;
+            padding-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .table-header-row h3 {
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            text-align: left;
+        }
+
+        th {
+            padding: 1rem;
+            background-color: rgba(15, 23, 42, 0.6);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 60px;
+            z-index: 5;
+            backdrop-filter: blur(4px);
+        }
+
+        th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+        th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+
+        td {
+            padding: 1rem;
+            font-size: 0.95rem;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+        }
+
+        tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tr:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 99px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            border: 1px solid;
+        }
+
+        .status-alto {
+            background-color: var(--status-alto-bg);
+            color: var(--status-alto-text);
+            border-color: var(--status-alto-border);
+        }
+
+        .status-medio {
+            background-color: var(--status-medio-bg);
+            color: var(--status-medio-text);
+            border-color: var(--status-medio-border);
+        }
+        
+        .status-revisar {
+            background-color: var(--status-revisar-bg);
+            color: var(--status-revisar-text);
+            border-color: var(--status-revisar-border);
+        }
+
+        .status-bajo {
+            background-color: var(--status-bajo-bg);
+            color: var(--status-bajo-text);
+            border-color: var(--status-bajo-border);
+        }
+
+        /* Status Dot Indicator */
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-alto .dot { background-color: var(--status-alto-text); box-shadow: 0 0 8px var(--status-alto-text); }
+        .status-medio .dot { background-color: var(--status-medio-text); box-shadow: 0 0 8px var(--status-medio-text); }
+        .status-revisar .dot { background-color: var(--status-revisar-text); box-shadow: 0 0 8px var(--status-revisar-text); }
+        .status-bajo .dot { background-color: var(--status-bajo-text); box-shadow: 0 0 8px var(--status-bajo-text); }
+
+        .bool-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .bool-true { color: #fca5a5; background: rgba(252, 165, 165, 0.1); border: 1px solid rgba(252,165,165,0.2) } /* Ficticio True es malo */
+        .bool-false { color: #94a3b8; }
+        
+        .fact-true { color: #86efac; background: rgba(134, 239, 172, 0.1); border: 1px solid rgba(134,239,172,0.2) } /* Habilitado es bueno */
+        .fact-false { color: #fca5a5; background: rgba(252, 165, 165, 0.1); border: 1px solid rgba(252,165,165,0.2) }
+
+        .download-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .download-btn:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .kpi-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .kpi-row {
+                grid-template-columns: 1fr;
+            }
+            .table-container {
+                padding: 0 1rem 1rem 1rem;
+            }
+            th, td {
+                padding: 0.75rem 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <path d="M9 12l2 2 4-4"></path>
+            </svg>
+            DIAN Auditor B2B
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+            V 1.0.0
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Sidebar Upload -->
+        <div class="upload-panel">
+            <h2>Nueva Auditoría</h2>
+            <p>Sube el archivo Excel de proveedores para cruzar contra DIAN BDME y Facturadores Electrónicos.</p>
+            
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📊</div>
+                <div id="dropText">Arrastra tu Excel aquí o haz clic para explorar</div>
+                <input type="file" class="file-input" id="fileInput" accept=".xlsx, .xls, .csv">
+            </div>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-header">
+                    <span id="progressStatus">Analizando NITs (BDME)...</span>
+                    <span id="progressPercentage">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-fill" id="progressBar"></div>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; text-align: center;" id="progressDetail">
+                    Preparando entorno...
+                </div>
+            </div>
+
+            <button class="btn" id="startBtn" disabled>Iniciar Análisis</button>
+        </div>
+
+        <!-- Main Results -->
+        <div class="results-panel" id="resultsPanel">
+            <div class="kpi-row">
+                <div class="kpi-card">
+                    <span class="kpi-label">Total Analizados</span>
+                    <span class="kpi-val" id="kpiTotal">0</span>
+                </div>
+                <div class="kpi-card alto">
+                    <span class="kpi-label">Riesgo Alto</span>
+                    <span class="kpi-val" id="kpiAlto">0</span>
+                </div>
+                <div class="kpi-card medio">
+                    <span class="kpi-label">Riesgo Medio</span>
+                    <span class="kpi-val" id="kpiMedio">0</span>
+                </div>
+                <div class="kpi-card bajo">
+                    <span class="kpi-label">Proveedor Seguro</span>
+                    <span class="kpi-val" id="kpiBajo">0</span>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div class="table-header-row">
+                    <h3>Detalle de Resultados</h3>
+                    <button class="download-btn" id="downloadBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Exportar a Excel
+                    </button>
+                </div>
+                
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>NIT</th>
+                            <th>Razón Social</th>
+                            <th>Ficticio (DIAN)</th>
+                            <th>Deudor (BDME)</th>
+                            <th>Facturador Elect.</th>
+                            <th>Nivel Riesgo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Rows injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de lógica de UI e interacciones mock (Simulando el Backend de Pandas/Selenium) -->
+    <script>
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const dropText = document.getElementById('dropText');
+        const startBtn = document.getElementById('startBtn');
+        
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const progressStatus = document.getElementById('progressStatus');
+        const progressDetail = document.getElementById('progressDetail');
+        
+        const resultsPanel = document.getElementById('resultsPanel');
+        const tableBody = document.getElementById('tableBody');
+        
+        let selectedFileName = "";
+
+        // UI Events for Dropzone
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        dropZone.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFileSelect, false);
+
+        function handleDrop(e) {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            handleFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            let files = e.target.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                const validExts = ['.xlsx', '.xls', '.csv'];
+                const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+                
+                if (validExts.includes(fileExt)) {
+                    // Limpiar estado y UI anterior
+                    resetState();
+
+                    selectedFileName = file.name;
+                    dropText.innerHTML = `<span style="color:var(--accent); font-weight:600">${file.name}</span><br><span style="font-size:0.8rem;color:var(--text-muted)">Archivo cargado correctamente</span>`;
+                    startBtn.disabled = false;
+                } else {
+                    alert("Por favor sube un archivo Excel válido (.xlsx, .xls, .csv)");
+                    fileInput.value = '';
+                }
+            }
+        }
+
+        function resetState() {
+            // Ocultar panel de resultados si estaba visible
+            resultsPanel.classList.remove('visible');
+            
+            // Limpiar la tabla de resultados
+            tableBody.innerHTML = '';
+            
+            // Resetear KPIs
+            document.getElementById('kpiTotal').textContent = '0';
+            document.getElementById('kpiAlto').textContent = '0';
+            document.getElementById('kpiMedio').textContent = '0';
+            document.getElementById('kpiBajo').textContent = '0';
+            
+            // Reiniciar progreso
+            progressBar.style.width = '0%';
+            progressPercentage.textContent = '0%';
+            progressStatus.textContent = 'Analizando NITs (BDME)...';
+            progressDetail.textContent = 'Preparando entorno...';
+            
+            // Reiniciar texto del botón
+            startBtn.textContent = 'Iniciar Análisis';
+        }
+
+        // Mock Simulation of Python Backend Processing
+        startBtn.addEventListener('click', async () => {
+            if(!startBtn.disabled) {
+                startAnimation();
+            }
+        });
+
+        async function startAnimation() {
+            startBtn.disabled = true;
+            dropZone.style.display = 'none';
+            progressContainer.style.display = 'block';
+            
+            // Generate Dynamic Mock Data instead of hardcoded to simulate parsing the new file
+            const generateMockData = () => {
+                const baseNames = [
+                    "Servicios Generales S.A.S", "Distribuidora Nacional LTDA", 
+                    "SERVICIOS & SUMINISTROS JARS", "TRADEFRONTERAS S.A.S.", 
+                    "Tech Solutions Colombia", "DISTRIBUIDORA LA PEÑA S.A.S.", 
+                    "Consultorías y Proyectos 360", "Inversiones del Norte",
+                    "Comercializadora Global", "Constructora Cifras"
+                ];
+                const mdms = ["SIN_DEUDA", "SIN_DEUDA", "EN_MORA", "INDETERMINADO"];
+                
+                const numRows = Math.floor(Math.random() * 6) + 5; // Entre 5 y 10 registros
+                const data = [];
+                for(let i=0; i<numRows; i++) {
+                    data.push({
+                        nit: "90" + Math.floor(Math.random() * 9000000).toString().padStart(7, '0'),
+                        name: baseNames[Math.floor(Math.random() * baseNames.length)],
+                        fic: Math.random() > 0.8,
+                        mdm: mdms[Math.floor(Math.random() * mdms.length)],
+                        fac: Math.random() > 0.2
+                    });
+                }
+                // Si es el nombre del primer test, forzar a la data estática original para consistencia
+                if (selectedFileName === 'Proveedores-Ficticios-16022026.xlsx' || window.firstRun) {
+                    window.firstRun = false;
+                    return [
+                        { nit: "900123456", name: "Servicios Generales S.A.S", fic: false, mdm: "SIN_DEUDA", fac: true },
+                        { nit: "801004345", name: "Distribuidora Nacional LTDA", fic: false, mdm: "EN_MORA", fac: true },
+                        { nit: "901565796", name: "SERVICIOS & SUMINISTROS JARS", fic: true, mdm: "INDETERMINADO", fac: false },
+                        { nit: "900425559", name: "TRADEFRONTERAS S.A.S.", fic: true, mdm: "SIN_DEUDA", fac: true },
+                        { nit: "830005210", name: "Tech Solutions Colombia", fic: false, mdm: "SIN_DEUDA", fac: true }
+                    ];
+                }
+                return data;
+            };
+
+            const dummyData = generateMockData();
+
+            const total = dummyData.length;
+            let current = 0;
+
+            const updateProgress = (detail, stage) => {
+                const p = Math.round((current / total) * 100);
+                progressBar.style.width = p + '%';
+                progressPercentage.textContent = p + '%';
+                progressStatus.textContent = stage;
+                progressDetail.textContent = detail;
+            }
+            
+            // Initial Wait
+            updateProgress("Iniciando workers de navegador headless...", "Conectando al servidor");
+            await new Promise(r => setTimeout(r, 1000));
+            updateProgress("Limpiando y normalizando matriz de NITs a 9 dígitos.", "Pre-procesamiento");
+            await new Promise(r => setTimeout(r, 1000));
+
+            for (const row of dummyData) {
+                current++;
+                updateProgress(`Navegando portal BDME y DIAN para el NIT: ${row.nit}`, `Scraping NIT ${current}/${total}`);
+                // Simulate variable delay (like random.uniform(1.5, 3.0) from bdme_scraper)
+                const delay = Math.random() * 1000 + 500; 
+                await new Promise(r => setTimeout(r, delay));
+            }
+
+            updateProgress("Evaluando matriz de reglas y estructurando reporte Parquet y Excel.", "Generando Reportes");
+            await new Promise(r => setTimeout(r, 1500));
+            
+            progressContainer.style.display = 'none';
+            dropZone.style.display = 'block';
+            startBtn.disabled = false;
+            startBtn.textContent = 'Analizar Otro Archivo';
+
+            renderResults(dummyData);
+        }
+
+        function calculateRisk(fic, mdm, fac) {
+            if (fic) return { level: 'ALTO', class: 'status-alto' };
+            if (mdm === 'EN_MORA' || !fac) return { level: 'MEDIO', class: 'status-medio' };
+            if (mdm === 'INDETERMINADO') return { level: 'REVISAR', class: 'status-revisar' };
+            return { level: 'BAJO', class: 'status-bajo' };
+        }
+
+        function renderResults(data) {
+            tableBody.innerHTML = '';
+            
+            let cAlto = 0, cMedio = 0, cBajo = 0;
+
+            data.forEach(row => {
+                const risk = calculateRisk(row.fic, row.mdm, row.fac);
+                
+                if(risk.level === 'ALTO') cAlto++;
+                else if(risk.level === 'MEDIO' || risk.level === 'REVISAR') cMedio++;
+                else cBajo++;
+
+                const tr = document.createElement('tr');
+                
+                // Badges
+                const ficBadge = row.fic ? `<span class="bool-badge bool-true">Si</span>` : `<span class="bool-badge bool-false">No</span>`;
+                const facBadge = row.fac ? `<span class="bool-badge fact-true">Habilitado</span>` : `<span class="bool-badge fact-false">Inactivo</span>`;
+                const mdmStr = row.mdm.replace('_', ' ');
+
+                tr.innerHTML = `
+                    <td style="font-family: monospace;">${row.nit}</td>
+                    <td style="font-weight: 500; color: #fff;">${row.name}</td>
+                    <td>${ficBadge}</td>
+                    <td><span style="color: ${row.mdm === 'EN_MORA' ? '#fcd34d' : '#94a3b8'}">${mdmStr}</span></td>
+                    <td>${facBadge}</td>
+                    <td>
+                        <span class="badge ${risk.class}">
+                            <span class="dot"></span>
+                            ${risk.level}
+                        </span>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            // Update KPIs
+            document.getElementById('kpiTotal').textContent = data.length;
+            document.getElementById('kpiAlto').textContent = cAlto;
+            document.getElementById('kpiMedio').textContent = cMedio;
+            document.getElementById('kpiBajo').textContent = cBajo;
+
+            // Show Panel
+            resultsPanel.classList.add('visible');
+        }
+
+        // Action UI Handlers
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            const btn = document.getElementById('downloadBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" animation="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Generando...`;
+            setTimeout(() => {
+                alert("Simulación de descarga del archivo reporte_cumplimiento.xlsx generada desde report_engine.py");
+                btn.innerHTML = originalText;
+            }, 1000);
+        });
+
+    </script>
+</body>
+</html>
