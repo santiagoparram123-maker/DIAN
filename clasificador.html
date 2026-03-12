@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clasificador Arancelario IA — DIAN Auditor B2B</title>
+    <meta name="description" content="Auto-clasificador arancelario masivo con inteligencia artificial para importaciones colombianas. Asigna códigos HS automáticamente usando qwen2.5-coder:7b.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           DESIGN SYSTEM — Variables compartidas con dashboard.html
+           ================================================================ */
+        :root {
+            --bg-color: #0f172a;
+            --bg-surface: #0b1120;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --accent-glow: rgba(59, 130, 246, 0.15);
+            --border-color: #334155;
+            --purple: #8b5cf6;
+            --purple-glow: rgba(139, 92, 246, 0.15);
+            
+            /* Colores de Confianza */
+            --conf-alta-bg: #052e16;
+            --conf-alta-text: #86efac;
+            --conf-alta-border: #15803d;
+            
+            --conf-media-bg: #422006;
+            --conf-media-text: #fcd34d;
+            --conf-media-border: #92400e;
+            
+            --conf-baja-bg: #450a0a;
+            --conf-baja-text: #fca5a5;
+            --conf-baja-border: #991b1b;
+            
+            --conf-error-bg: #1c1917;
+            --conf-error-text: #a8a29e;
+            --conf-error-border: #57534e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ================================================================
+           HEADER — Consistente con dashboard.html + navegación
+           ================================================================ */
+        header {
+            background-color: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(12px);
+            padding: 1.2rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .nav-divider {
+            width: 1px;
+            height: 28px;
+            background: var(--border-color);
+        }
+
+        .module-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--accent-glow);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 0.4rem 1rem;
+            border-radius: 99px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #93c5fd;
+        }
+
+        .module-badge .pulse {
+            width: 8px;
+            height: 8px;
+            background: #60a5fa;
+            border-radius: 50%;
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(96, 165, 250, 0); }
+        }
+
+        .nav-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+        }
+
+        .nav-link:hover {
+            color: var(--text-main);
+            background: rgba(255,255,255, 0.05);
+        }
+
+        /* ================================================================
+           LAYOUT PRINCIPAL
+           ================================================================ */
+        .container {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 2rem;
+        }
+
+        /* ================================================================
+           SIDEBAR — Upload Panel (Dropzone CSV)
+           ================================================================ */
+        .upload-panel {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            height: fit-content;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            position: sticky;
+            top: 90px;
+        }
+
+        .upload-panel h2 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-panel p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .csv-format-hint {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .csv-format-hint .header-line {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            background: rgba(15, 23, 42, 0.3);
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .drop-zone-icon {
+            font-size: 2.8rem;
+            margin-bottom: 0.8rem;
+            display: block;
+        }
+
+        .drop-zone-text {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .drop-zone-text strong {
+            color: var(--accent);
+        }
+
+        .file-input {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            color: white;
+            border: none;
+            padding: 0.9rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 200%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-primary:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary:disabled {
+            background: var(--border-color);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-primary:disabled::before {
+            display: none;
+        }
+
+        /* Model Info */
+        .model-info {
+            margin-top: 1.5rem;
+            padding-top: 1.2rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .model-chip {
+            background: var(--purple-glow);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: #c4b5fd;
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .model-label {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        /* ================================================================
+           PROGRESS SECTION
+           ================================================================ */
+        .progress-container {
+            margin-top: 1.5rem;
+            display: none;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .progress-bar-bg {
+            background-color: var(--border-color);
+            border-radius: 99px;
+            height: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            height: 100%;
+            width: 0%;
+            border-radius: 99px;
+            transition: width 0.4s ease;
+            position: relative;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+            animation: shimmer 1.5s infinite;
+            transform: skewX(-20deg);
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) skewX(-20deg); }
+            100% { transform: translateX(200%) skewX(-20deg); }
+        }
+
+        .progress-detail {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        .progress-item-label {
+            margin-top: 12px;
+            padding: 0.6rem 1rem;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .progress-item-label strong {
+            color: var(--text-main);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ================================================================
+           RESULTS PANEL
+           ================================================================ */
+        .results-panel {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .results-panel.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* KPIs */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(15, 23, 42, 0.4);
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            padding: 1.2rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+
+        .kpi-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .kpi-val {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .kpi-card.total .kpi-val { 
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .kpi-card.alta .kpi-val { color: var(--conf-alta-text); }
+        .kpi-card.media .kpi-val { color: var(--conf-media-text); }
+        .kpi-card.baja .kpi-val { color: var(--conf-baja-text); }
+
+        /* Table */
+        .table-container {
+            flex: 1;
+            overflow: auto;
+            padding: 0 1.5rem 1.5rem 1.5rem;
+        }
+
+        .table-header-row {
+            position: sticky;
+            top: 0;
+            background-color: var(--card-bg);
+            z-index: 10;
+            padding-top: 1.5rem;
+            padding-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-header-row h3 {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            text-align: left;
+        }
+
+        th {
+            padding: 1rem;
+            background-color: rgba(15, 23, 42, 0.6);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 60px;
+            z-index: 5;
+            backdrop-filter: blur(4px);
+        }
+
+        th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+        th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+
+        td {
+            padding: 1rem;
+            font-size: 0.9rem;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+            vertical-align: middle;
+        }
+
+        tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tr:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .desc-cell {
+            max-width: 350px;
+            line-height: 1.5;
+            color: var(--text-muted);
+        }
+
+        .hs-code-cell {
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            letter-spacing: 1px;
+        }
+
+        .hs-code-cell .hs-prefix {
+            color: var(--accent);
+        }
+
+        /* Badges de Confianza */
+        .badge {
+            padding: 0.4rem 0.9rem;
+            border-radius: 99px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            border: 1px solid;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-alta {
+            background-color: var(--conf-alta-bg);
+            color: var(--conf-alta-text);
+            border-color: var(--conf-alta-border);
+        }
+
+        .badge-media {
+            background-color: var(--conf-media-bg);
+            color: var(--conf-media-text);
+            border-color: var(--conf-media-border);
+        }
+
+        .badge-baja {
+            background-color: var(--conf-baja-bg);
+            color: var(--conf-baja-text);
+            border-color: var(--conf-baja-border);
+        }
+
+        .badge-error {
+            background-color: var(--conf-error-bg);
+            color: var(--conf-error-text);
+            border-color: var(--conf-error-border);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .badge-alta .dot { background: var(--conf-alta-text); box-shadow: 0 0 8px var(--conf-alta-text); }
+        .badge-media .dot { background: var(--conf-media-text); box-shadow: 0 0 8px var(--conf-media-text); }
+        .badge-baja .dot { background: var(--conf-baja-text); box-shadow: 0 0 8px var(--conf-baja-text); }
+        .badge-error .dot { background: var(--conf-error-text); box-shadow: 0 0 8px var(--conf-error-text); }
+
+        /* Download Button */
+        .download-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .download-btn:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: var(--text-muted);
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 4rem 2rem;
+            min-height: 400px;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state p {
+            color: var(--border-color);
+            font-size: 0.9rem;
+            max-width: 320px;
+        }
+
+        /* ================================================================
+           RESPONSIVE
+           ================================================================ */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .upload-panel {
+                position: static;
+            }
+            .kpi-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            header {
+                padding: 1rem;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            .kpi-row {
+                grid-template-columns: 1fr 1fr;
+            }
+            .container {
+                padding: 1rem;
+            }
+            td, th {
+                padding: 0.7rem 0.5rem;
+            }
+            .desc-cell {
+                max-width: 180px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-left">
+            <a href="dashboard.html" class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    <path d="M9 12l2 2 4-4"></path>
+                </svg>
+                DIAN Auditor B2B
+            </a>
+            <div class="nav-divider"></div>
+            <div class="module-badge">
+                <span class="pulse"></span>
+                Clasificador IA
+            </div>
+        </div>
+        <a href="dashboard.html" class="nav-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 18l-6-6 6-6"></path>
+            </svg>
+            Volver al Dashboard
+        </a>
+    </header>
+
+    <div class="container">
+        <!-- ================ SIDEBAR: Upload CSV ================ -->
+        <div class="upload-panel" id="uploadPanel">
+            <h2>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                Catálogo de Productos
+            </h2>
+            <p>Sube un archivo CSV con las descripciones de mercancías. La IA clasificará cada producto con su partida arancelaria (HS Code) automáticamente.</p>
+
+            <div class="csv-format-hint">
+                <div class="header-line">ID_PRODUCTO,DESCRIPCION_MERCANCIA</div>
+                P001,"Zapatos de cuero italiano..."<br>
+                P002,"Camisetas de algodón..."
+            </div>
+
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📋</div>
+                <div class="drop-zone-text" id="dropText">
+                    <strong>Arrastra tu CSV aquí</strong><br>
+                    <span style="font-size:0.85rem">o haz clic para explorar</span>
+                </div>
+                <input type="file" class="file-input" id="fileInput" accept=".csv">
+            </div>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-header">
+                    <span id="progressStatus">Preparando modelo IA...</span>
+                    <span id="progressPercentage">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-fill" id="progressBar"></div>
+                </div>
+                <div class="progress-detail" id="progressDetail">Cargando qwen2.5-coder:7b...</div>
+                <div class="progress-item-label" id="progressItem" style="display:none;"></div>
+            </div>
+
+            <button class="btn-primary" id="startBtn" disabled>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                </svg>
+                Clasificar con IA
+            </button>
+
+            <div class="model-info">
+                <span class="model-chip">qwen2.5-coder:7b</span>
+                <span class="model-label">Modelo Local (Ollama)</span>
+            </div>
+        </div>
+
+        <!-- ================ MAIN: Results Panel ================ -->
+        <div class="results-panel" id="resultsPanel">
+            <!-- Empty State (Initial) -->
+            <div class="empty-state" id="emptyState">
+                <div class="empty-state-icon">🔍</div>
+                <h3>Sin clasificaciones aún</h3>
+                <p>Sube un archivo CSV con tus productos para que la IA asigne las partidas arancelarias automáticamente.</p>
+            </div>
+
+            <!-- KPIs (Hidden initially) -->
+            <div class="kpi-row" id="kpiRow" style="display:none;">
+                <div class="kpi-card total">
+                    <span class="kpi-label">Total Clasificados</span>
+                    <span class="kpi-val" id="kpiTotal">0</span>
+                </div>
+                <div class="kpi-card alta">
+                    <span class="kpi-label">Confianza Alta</span>
+                    <span class="kpi-val" id="kpiAlta">0</span>
+                </div>
+                <div class="kpi-card media">
+                    <span class="kpi-label">Confianza Media</span>
+                    <span class="kpi-val" id="kpiMedia">0</span>
+                </div>
+                <div class="kpi-card baja">
+                    <span class="kpi-label">Confianza Baja</span>
+                    <span class="kpi-val" id="kpiBaja">0</span>
+                </div>
+            </div>
+
+            <!-- Results Table (Hidden initially) -->
+            <div class="table-container" id="tableContainer" style="display:none;">
+                <div class="table-header-row">
+                    <h3>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                            <line x1="3" y1="15" x2="21" y2="15"></line>
+                            <line x1="9" y1="3" x2="9" y2="21"></line>
+                        </svg>
+                        Resultado de Clasificación IA
+                    </h3>
+                    <button class="download-btn" id="downloadBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Exportar CSV
+                    </button>
+                </div>
+
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Descripción Mercancía</th>
+                            <th>HS Code</th>
+                            <th>Confianza IA</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Filas inyectadas por JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================
+         SCRIPT — Lógica de UI y simulación mock del backend Python
+         ================================================================ -->
+    <script>
+        // ================================================================
+        // DOM ELEMENTS
+        // ================================================================
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const dropText = document.getElementById('dropText');
+        const startBtn = document.getElementById('startBtn');
+
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const progressStatus = document.getElementById('progressStatus');
+        const progressDetail = document.getElementById('progressDetail');
+        const progressItem = document.getElementById('progressItem');
+
+        const resultsPanel = document.getElementById('resultsPanel');
+        const emptyState = document.getElementById('emptyState');
+        const kpiRow = document.getElementById('kpiRow');
+        const tableContainer = document.getElementById('tableContainer');
+        const tableBody = document.getElementById('tableBody');
+
+        let selectedFile = null;
+        let currentResults = []; // Para exportar después
+
+        // ================================================================
+        // DROPZONE EVENTS
+        // ================================================================
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
+            dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(ev => {
+            dropZone.addEventListener(ev, () => dropZone.classList.add('dragover'));
+        });
+
+        ['dragleave', 'drop'].forEach(ev => {
+            dropZone.addEventListener(ev, () => dropZone.classList.remove('dragover'));
+        });
+
+        dropZone.addEventListener('drop', e => {
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', e => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            const file = files[0];
+            const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+            if (ext !== '.csv') {
+                alert('Este módulo acepta únicamente archivos CSV (.csv)');
+                fileInput.value = '';
+                return;
+            }
+
+            selectedFile = file;
+            dropText.innerHTML = `
+                <span style="color:var(--accent); font-weight:600">${file.name}</span><br>
+                <span style="font-size:0.82rem;color:var(--text-muted)">${(file.size / 1024).toFixed(1)} KB — Listo para clasificar</span>
+            `;
+            startBtn.disabled = false;
+
+            // Reset previous results
+            resetResults();
+        }
+
+        function resetResults() {
+            emptyState.style.display = 'flex';
+            kpiRow.style.display = 'none';
+            tableContainer.style.display = 'none';
+            tableBody.innerHTML = '';
+            resultsPanel.classList.remove('visible');
+            currentResults = [];
+        }
+
+        // ================================================================
+        // CSV PARSER — Lee el CSV desde el navegador (sin backend)
+        // ================================================================
+        function parseCSV(text) {
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 2) return [];
+
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const idCol = headers.indexOf('ID_PRODUCTO');
+            const descCol = headers.indexOf('DESCRIPCION_MERCANCIA');
+
+            if (idCol === -1 || descCol === -1) {
+                alert('El CSV debe contener las columnas: ID_PRODUCTO y DESCRIPCION_MERCANCIA');
+                return [];
+            }
+
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                // Simple CSV parser que maneja comillas
+                const row = parseCSVLine(lines[i]);
+                if (row.length > Math.max(idCol, descCol)) {
+                    data.push({
+                        id: row[idCol].trim(),
+                        descripcion: row[descCol].trim()
+                    });
+                }
+            }
+            return data;
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current);
+            return result;
+        }
+
+        // ================================================================
+        // MOCK IA CLASSIFIER — Simula la respuesta de qwen2.5-coder:7b
+        // ================================================================
+        // En producción, esto se reemplazaría con una llamada fetch() al
+        // backend Python clasificador.py que se comunica con Ollama.
+        // Esta simulación es para demostración visual sin necesitar Ollama.
+
+        const HS_CODE_DB = {
+            'zapato': { hs: '6403990000', conf: 'alta', cap: 'Calzado' },
+            'cuero': { hs: '6403990000', conf: 'alta', cap: 'Calzado' },
+            'bota': { hs: '6403910000', conf: 'alta', cap: 'Calzado' },
+            'camisa': { hs: '6105100000', conf: 'alta', cap: 'Prendas' },
+            'camiseta': { hs: '6109100000', conf: 'alta', cap: 'Prendas' },
+            'algodón': { hs: '6109100000', conf: 'media', cap: 'Prendas' },
+            'pantalón': { hs: '6203420000', conf: 'alta', cap: 'Prendas' },
+            'aceite': { hs: '1509100000', conf: 'alta', cap: 'Aceites' },
+            'oliva': { hs: '1509100000', conf: 'alta', cap: 'Aceites' },
+            'laptop': { hs: '8471300000', conf: 'alta', cap: 'Tecnología' },
+            'computador': { hs: '8471300000', conf: 'alta', cap: 'Tecnología' },
+            'portátil': { hs: '8471300000', conf: 'alta', cap: 'Tecnología' },
+            'teléfono': { hs: '8517120000', conf: 'alta', cap: 'Tecnología' },
+            'celular': { hs: '8517120000', conf: 'alta', cap: 'Tecnología' },
+            'tablet': { hs: '8471300000', conf: 'media', cap: 'Tecnología' },
+            'freno': { hs: '8708302900', conf: 'alta', cap: 'Automotriz' },
+            'repuesto': { hs: '8708999000', conf: 'media', cap: 'Automotriz' },
+            'disco': { hs: '8708302900', conf: 'alta', cap: 'Automotriz' },
+            'automóvil': { hs: '8703230000', conf: 'media', cap: 'Automotriz' },
+            'fertilizante': { hs: '3105200000', conf: 'alta', cap: 'Agrícola' },
+            'npk': { hs: '3105200000', conf: 'alta', cap: 'Agrícola' },
+            'abono': { hs: '3105900000', conf: 'media', cap: 'Agrícola' },
+            'cable': { hs: '8544700000', conf: 'alta', cap: 'Telecomunicaciones' },
+            'fibra óptica': { hs: '8544700000', conf: 'alta', cap: 'Telecomunicaciones' },
+            'fibra': { hs: '8544700000', conf: 'media', cap: 'Telecomunicaciones' },
+            'juguete': { hs: '9503009900', conf: 'alta', cap: 'Juguetes' },
+            'puzzle': { hs: '9503006000', conf: 'alta', cap: 'Juguetes' },
+            'madera': { hs: '4421999000', conf: 'baja', cap: 'Madera' },
+            'arroz': { hs: '1006300000', conf: 'alta', cap: 'Alimentos' },
+            'café': { hs: '0901110000', conf: 'alta', cap: 'Alimentos' },
+            'azúcar': { hs: '1701130000', conf: 'alta', cap: 'Alimentos' },
+            'medicamento': { hs: '3004909000', conf: 'media', cap: 'Farmacéutico' },
+            'cosmético': { hs: '3304990000', conf: 'media', cap: 'Cosméticos' },
+            'perfume': { hs: '3303000000', conf: 'alta', cap: 'Cosméticos' },
+        };
+
+        function mockClassify(descripcion) {
+            const desc = descripcion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            let bestMatch = null;
+            let bestScore = 0;
+
+            // Buscar la mejor coincidencia por palabras clave
+            for (const [keyword, data] of Object.entries(HS_CODE_DB)) {
+                const normalizedKey = keyword.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (desc.includes(normalizedKey)) {
+                    const score = normalizedKey.length; // Más largo = más específico
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMatch = data;
+                    }
+                }
+            }
+
+            if (bestMatch) {
+                return { hs_code: bestMatch.hs, confianza: bestMatch.conf };
+            }
+
+            // Si no hay coincidencia, generar un código genérico con confianza baja
+            const hash = Array.from(descripcion).reduce((a, c) => a + c.charCodeAt(0), 0);
+            const fakeCode = String(7000000000 + (hash % 3000000000)).padStart(10, '0');
+            return { hs_code: fakeCode, confianza: 'baja' };
+        }
+
+        // ================================================================
+        // START CLASSIFICATION — Proceso principal
+        // ================================================================
+        startBtn.addEventListener('click', async () => {
+            if (!startBtn.disabled && selectedFile) {
+                await startClassification();
+            }
+        });
+
+        async function startClassification() {
+            startBtn.disabled = true;
+            dropZone.style.display = 'none';
+            progressContainer.style.display = 'block';
+            resetResults();
+
+            // Leer el archivo CSV del navegador
+            const text = await selectedFile.text();
+            const productos = parseCSV(text);
+
+            if (productos.length === 0) {
+                alert('No se encontraron productos válidos en el CSV.');
+                resetUI();
+                return;
+            }
+
+            const total = productos.length;
+            const resultados = [];
+
+            // Fase 1: Preparación
+            updateProgress(0, total, 'Inicializando modelo IA...', 'Cargando qwen2.5-coder:7b en memoria...');
+            await sleep(800);
+
+            updateProgress(0, total, 'Analizando catálogo...', `${total} productos detectados en el CSV`);
+            await sleep(600);
+
+            // Fase 2: Clasificación producto por producto
+            for (let i = 0; i < productos.length; i++) {
+                const prod = productos[i];
+                updateProgress(
+                    i + 1, total,
+                    `Clasificando producto ${i + 1}/${total}`,
+                    `Inferencia IA en progreso...`
+                );
+
+                // Mostrar qué producto se está procesando
+                progressItem.style.display = 'block';
+                progressItem.innerHTML = `<strong>${prod.id}:</strong> ${truncate(prod.descripcion, 60)}`;
+
+                // Simular tiempo de inferencia del modelo (en producción es la llamada a Ollama)
+                const delay = Math.random() * 600 + 400;
+                await sleep(delay);
+
+                // Clasificar (mock)
+                const resultado = mockClassify(prod.descripcion);
+                resultados.push({
+                    ID_PRODUCTO: prod.id,
+                    DESCRIPCION_MERCANCIA: prod.descripcion,
+                    HS_CODE: resultado.hs_code,
+                    CONFIANZA: resultado.confianza
+                });
+            }
+
+            // Fase 3: Finalizando
+            updateProgress(total, total, 'Generando reporte...', 'Estructurando resultados para visualización');
+            progressItem.style.display = 'none';
+            await sleep(500);
+
+            // Guardar resultados globales para exportar
+            currentResults = resultados;
+
+            // Ocultar progreso y mostrar resultados
+            progressContainer.style.display = 'none';
+            dropZone.style.display = 'block';
+            startBtn.disabled = false;
+            startBtn.querySelector('svg').outerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="1 4 1 10 7 10"></polyline>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                </svg>
+            `;
+            startBtn.childNodes[startBtn.childNodes.length - 1].textContent = ' Clasificar Otro Archivo';
+
+            renderResults(resultados);
+        }
+
+        function updateProgress(current, total, status, detail) {
+            const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+            progressBar.style.width = pct + '%';
+            progressPercentage.textContent = pct + '%';
+            progressStatus.textContent = status;
+            progressDetail.textContent = detail;
+        }
+
+        function resetUI() {
+            progressContainer.style.display = 'none';
+            dropZone.style.display = 'block';
+            startBtn.disabled = false;
+            fileInput.value = '';
+            selectedFile = null;
+            dropText.innerHTML = '<strong>Arrastra tu CSV aquí</strong><br><span style="font-size:0.85rem">o haz clic para explorar</span>';
+        }
+
+        // ================================================================
+        // RENDER RESULTS — Inyecta la tabla y los KPIs
+        // ================================================================
+        function renderResults(data) {
+            tableBody.innerHTML = '';
+            let alta = 0, media = 0, baja = 0;
+
+            data.forEach((row, idx) => {
+                const conf = row.CONFIANZA;
+                if (conf === 'alta') alta++;
+                else if (conf === 'media') media++;
+                else baja++; // baja + error
+
+                const tr = document.createElement('tr');
+                tr.style.animation = `fadeIn 0.3s ease ${idx * 0.05}s both`;
+
+                // Formatear HS Code con color en los primeros 4 dígitos (capítulo)
+                const hs = row.HS_CODE;
+                const hsFormatted = hs === 'ERROR'
+                    ? '<span style="color:var(--conf-error-text)">ERROR</span>'
+                    : `<span class="hs-prefix">${hs.substring(0, 4)}</span>.${hs.substring(4, 6)}.${hs.substring(6, 8)}.${hs.substring(8)}`;
+
+                // Badge de confianza
+                const badgeClass = `badge-${conf === 'error' ? 'error' : conf}`;
+                const confLabel = conf.charAt(0).toUpperCase() + conf.slice(1);
+
+                tr.innerHTML = `
+                    <td style="font-family: 'Courier New', monospace; font-weight:600; color:var(--text-muted);">${row.ID_PRODUCTO}</td>
+                    <td class="desc-cell">${row.DESCRIPCION_MERCANCIA}</td>
+                    <td class="hs-code-cell">${hsFormatted}</td>
+                    <td>
+                        <span class="badge ${badgeClass}">
+                            <span class="dot"></span>
+                            ${confLabel}
+                        </span>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            // KPIs
+            document.getElementById('kpiTotal').textContent = data.length;
+            document.getElementById('kpiAlta').textContent = alta;
+            document.getElementById('kpiMedia').textContent = media;
+            document.getElementById('kpiBaja').textContent = baja;
+
+            // Transiciones visuales
+            emptyState.style.display = 'none';
+            kpiRow.style.display = 'grid';
+            tableContainer.style.display = 'block';
+            resultsPanel.classList.add('visible');
+        }
+
+        // ================================================================
+        // EXPORT — Descargar resultados como CSV
+        // ================================================================
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if (currentResults.length === 0) return;
+
+            const headers = ['ID_PRODUCTO', 'DESCRIPCION_MERCANCIA', 'HS_CODE', 'CONFIANZA'];
+            const csvRows = [headers.join(',')];
+
+            currentResults.forEach(row => {
+                const values = headers.map(h => {
+                    const val = row[h] || '';
+                    // Escapar comillas y envolver si contiene coma
+                    return val.includes(',') || val.includes('"')
+                        ? `"${val.replace(/"/g, '""')}"`
+                        : val;
+                });
+                csvRows.push(values.join(','));
+            });
+
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `clasificacion_arancelaria_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // ================================================================
+        // UTILITIES
+        // ================================================================
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function truncate(str, max) {
+            return str.length > max ? str.substring(0, max) + '...' : str;
+        }
+    </script>
+
+</body>
+</html>
