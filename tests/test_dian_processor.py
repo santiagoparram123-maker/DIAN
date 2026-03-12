@@ -20,11 +20,12 @@ def test_process_dian_file_success(tmp_path):
     result_df = process_dian_file(test_excel)
     
     # Assertions
-    assert len(result_df) == 2 # 900123456 y 012345678
+    assert result_df.height == 2 # 900123456 y 012345678
     assert 'FECHA_INGESTA' in result_df.columns
     assert 'NIT_NORMALIZADO' in result_df.columns
-    assert '900123456' in result_df['NIT_NORMALIZADO'].values
-    assert '012345678' in result_df['NIT_NORMALIZADO'].values
+    nit_values = result_df['NIT_NORMALIZADO'].to_list()
+    assert '900123456' in nit_values
+    assert '012345678' in nit_values
 
 def test_process_dian_file_invalid_schema(tmp_path):
     df = pd.DataFrame({
