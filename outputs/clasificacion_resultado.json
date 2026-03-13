@@ -1,0 +1,62 @@
+[
+  {
+    "ID_PRODUCTO":"PROD-001",
+    "DESCRIPCION_MERCANCIA":"Zapatos de cuero para hombre con suela de caucho hechos a mano en Italia",
+    "HS_CODE":"6404110000",
+    "CONFIANZA":"media"
+  },
+  {
+    "ID_PRODUCTO":"PROD-002",
+    "DESCRIPCION_MERCANCIA":"Máquina de café espresso industrial de doble grupo 220V en acero inoxidable",
+    "HS_CODE":"8419810000",
+    "CONFIANZA":"alta"
+  },
+  {
+    "ID_PRODUCTO":"PROD-003",
+    "DESCRIPCION_MERCANCIA":"Polímeros de etileno en formas primarias (resina plástica) para fabricación de envases",
+    "HS_CODE":"3907100000",
+    "CONFIANZA":"media"
+  },
+  {
+    "ID_PRODUCTO":"PROD-004",
+    "DESCRIPCION_MERCANCIA":"Extracto de malta para la elaboración de alimentos infantiles",
+    "HS_CODE":"2106900000",
+    "CONFIANZA":"media"
+  },
+  {
+    "ID_PRODUCTO":"PROD-005",
+    "DESCRIPCION_MERCANCIA":"Partes y accesorios para tractores: Eje de transmisión de acero forjado",
+    "HS_CODE":"8708990000",
+    "CONFIANZA":"media"
+  },
+  {
+    "ID_PRODUCTO":"PROD-006",
+    "DESCRIPCION_MERCANCIA":"Sillas de comedor tapizadas con tejido de algodón y estructura de madera de roble",
+    "HS_CODE":"9401690000",
+    "CONFIANZA":"media"
+  },
+  {
+    "ID_PRODUCTO":"PROD-007",
+    "DESCRIPCION_MERCANCIA":"Smartphones con pantalla OLED de 6.5 pulgadas y 256GB de almacenamiento",
+    "HS_CODE":"8517120000",
+    "CONFIANZA":"alta"
+  },
+  {
+    "ID_PRODUCTO":"PROD-008",
+    "DESCRIPCION_MERCANCIA":"Preparaciones de belleza: Champú sin sulfatos enriquecido con aceite de argán",
+    "HS_CODE":"3305100000",
+    "CONFIANZA":"alta"
+  },
+  {
+    "ID_PRODUCTO":"PROD-009",
+    "DESCRIPCION_MERCANCIA":"Baldosas de cerámica esmaltada para pavimentación 60x60 cm",
+    "HS_CODE":"6911900000",
+    "CONFIANZA":"media"
+  },
+  {
+    "ID_PRODUCTO":"PROD-010",
+    "DESCRIPCION_MERCANCIA":"Vino tinto reserva embotellado 750ml con grado alcohólico 13.5%",
+    "HS_CODE":"2204210000",
+    "CONFIANZA":"alta"
+  }
+]

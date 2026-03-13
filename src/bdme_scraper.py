@@ -200,10 +200,14 @@ def consult_batch_bdme(nits: list, cache_path: str = None) -> pd.DataFrame:
              
     # Consolidar Caché
     nuevos_df = pd.DataFrame(resultados_actuales)
+    if nuevos_df.empty:
+        # Retornar DF vacío con esquema esperado si no hay resultados
+        return pd.DataFrame(columns=["nit", "estado_bdme", "nombre_entidad", "valor_mora", "timestamp", "error"])
+        
     if 'timestamp' in nuevos_df.columns:
         nuevos_df['timestamp'] = pd.to_datetime(nuevos_df['timestamp'])
         
-    if not cache_df.empty:
+    if not cache_df.empty and 'nit' in cache_df.columns:
         # Update cache by dropping old records of the same NIT and appending new
         nits_procesados = nuevos_df['nit'].unique()
         cache_df = cache_df[~cache_df['nit'].isin(nits_procesados)]

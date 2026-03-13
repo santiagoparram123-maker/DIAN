@@ -34,7 +34,17 @@ import re
 import os
 import sys
 import logging
+import numpy as np
 from typing import Optional
+
+# Nuevas dependencias para RAG
+try:
+    from sentence_transformers import SentenceTransformer
+    from sklearn.metrics.pairwise import cosine_similarity
+except ImportError:
+    logging.warning("No se encontraron dependencias de RAG. Ejecuta: pip install sentence-transformers scikit-learn")
+    SentenceTransformer = None
+    cosine_similarity = None
 
 # --- Configuración del Logger ---
 # Formato profesional con timestamp para rastreo en producción
@@ -53,38 +63,98 @@ logger = logging.getLogger("ClasificadorArancelario")
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 # Nombre exacto del modelo a invocar.
-# IMPORTANTE: NO se usa OpenAI. Se usa qwen2.5-coder:7b via Ollama.
-MODELO_IA = "qwen2.5-coder:7b"
+# IMPORTANTE: NO se usa OpenAI. Se usa phi4:latest via Ollama.
+MODELO_IA = "phi4:latest"
 
 # Columnas esperadas en el CSV de entrada del cliente
 COLUMNA_ID = "ID_PRODUCTO"
 COLUMNA_DESCRIPCION = "DESCRIPCION_MERCANCIA"
 
 # ============================================================================
-# SYSTEM PROMPT — Instrucciones estrictas para el modelo de IA
+# SYSTEM PROMPT — Instrucciones estrictas para el modelo de IA (Ahora RAG-Aware)
 # ============================================================================
-# Este prompt está diseñado para forzar al LLM a actuar exclusivamente como
-# un clasificador arancelario experto. Se enfatiza que la ÚNICA salida válida
-# es un objeto JSON, sin texto adicional, sin explicaciones, sin markdown.
-# Esto minimiza errores de parseo y permite integración directa con el pipeline.
+# Este prompt está diseñado para usar el contexto pre-clasificado (RAG)
+# y responder exclusivamente en JSON.
 
-SYSTEM_PROMPT = """Eres un experto clasificador arancelario del Sistema Armonizado (SA/HS).
-Tu ÚNICA función es analizar descripciones de mercancías y asignar el código arancelario correcto.
+SYSTEM_PROMPT = """Eres un auditor aduanero colombiano experto.
+Tu ÚNICA función es analizar descripciones de mercancías y asignar el código arancelario correcto de 10 dígitos.
 
 REGLAS ESTRICTAS:
 1. Tu respuesta DEBE ser ÚNICAMENTE un objeto JSON válido. NADA MÁS.
 2. NO incluyas explicaciones, comentarios, texto adicional ni formato markdown.
-3. El código HS debe tener exactamente 10 dígitos (subpartida arancelaria completa).
-4. Usa el arancel de aduanas de Colombia basado en la NANDINA y el Sistema Armonizado.
-5. Si no estás seguro del código exacto, proporciona el más cercano y marca confianza como "baja".
+3. El código HS DEBE tener exactamente 10 dígitos.
+4. BASA tu decisión principal en los EJEMPLOS HISTÓRICOS (Contexto) provistos. Esta es tu ancla de verdad.
+5. Usa el arancel de aduanas de Colombia basado en la NANDINA si el contexto no es suficiente.
 
 FORMATO DE RESPUESTA (JSON puro, sin ```json ni texto):
 {"hs_code": "6403990000", "confianza": "alta"}
 
 NIVELES DE CONFIANZA:
-- "alta": Clasificación clara y precisa basada en la descripción.
-- "media": Descripción ambigua, múltiples partidas posibles. Se eligió la más probable.
-- "baja": Descripción insuficiente o producto muy genérico. Requiere revisión humana."""
+- "alta": El contexto histórico coincide casi perfectamente.
+- "media": Se tuvo que inferir levemente a partir del contexto.
+- "baja": Ningún contexto sirvió, clasificación a ciegas."""
+
+# ============================================================================
+# CLASE RAG - Base de Conocimiento Aduanera
+# ============================================================================
+
+class BaseConocimientoAduanera:
+    """
+    Gestiona el histórico de declaraciones de importación (Formulario 500)
+    para proveer contexto similar a la IA mediante búsqueda vectorial.
+    """
+    _instancia = None
+    _modelo_embeddings = None
+    _df_historico = None
+    _embeddings_base = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instancia is None:
+            cls._instancia = cls()
+            cls._instancia._inicializar()
+        return cls._instancia
+        
+    def _inicializar(self):
+        if SentenceTransformer is None:
+            return
+            
+        logger.info("Inicializando modelo de Embeddings (all-MiniLM-L6-v2)...")
+        self._modelo_embeddings = SentenceTransformer('all-MiniLM-L6-v2')
+        
+        # Cargar CSV histórico
+        ruta_h = os.path.join(os.path.dirname(__file__), '..', 'data', 'historico_dian.csv')
+        if os.path.exists(ruta_h):
+            self._df_historico = pd.read_csv(ruta_h)
+            logger.info(f"Vectorizando {len(self._df_historico)} registros históricos de MOCK DIAN...")
+            textos = self._df_historico['DESCRIPCION_MERCANCIA'].astype(str).tolist()
+            self._embeddings_base = self._modelo_embeddings.encode(textos)
+        else:
+            logger.warning(f"No se encontró histórico RAG en: {ruta_h}")
+
+    def buscar_similares(self, descripcion: str, top_k: int = 3) -> str:
+        """Busca y retorna como texto plano los registros más parecidos."""
+        if self._modelo_embeddings is None or self._df_historico is None:
+            return "No hay contexto disponible."
+            
+        emb_query = self._modelo_embeddings.encode([descripcion])
+        similitudes = cosine_similarity(emb_query, self._embeddings_base)[0]
+        
+        # Obtener los índices de los top_k más similares
+        idx_top = np.argsort(similitudes)[::-1][:top_k]
+        
+        contexto_lista = []
+        for i in idx_top:
+            desc_h = self._df_historico.iloc[i]['DESCRIPCION_MERCANCIA']
+            code_h = str(self._df_historico.iloc[i]['HS_CODE']).zfill(10)
+            score = similitudes[i]
+            # Solo incluir si hay un mínimo de similitud lógica
+            if score > 0.3: 
+                contexto_lista.append(f"- Mercancía: {desc_h} -> HS Code asignado: {code_h}")
+                
+        if not contexto_lista:
+            return "No se encontraron clasificaciones parecidas."
+        return "\n".join(contexto_lista)
 
 
 # ============================================================================
@@ -175,9 +245,15 @@ def clasificar_producto(descripcion: str) -> dict:
     # Valor por defecto en caso de error total
     resultado_error = {"hs_code": "ERROR", "confianza": "error"}
 
-    # Construir el prompt del usuario para esta mercancía específica
+    # Recuperar Contexto Histórico RAG
+    bc = BaseConocimientoAduanera.get_instance()
+    contexto_historico = bc.buscar_similares(descripcion)
+
+    # Construir el prompt del usuario 
     prompt_usuario = (
-        f"Clasifica la siguiente mercancía y responde SOLO con el JSON:\n"
+        f"Para ayudarte, aquí tienes clasificaciones históricas similares aprobadas:\n"
+        f"{contexto_historico}\n\n"
+        f"Basado en las reglas y este contexto, clasifica la siguiente nueva mercancía y responde SOLO con el JSON:\n"
         f"Mercancía: \"{descripcion}\""
     )
 

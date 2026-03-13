@@ -83,7 +83,13 @@ def generate_report(client_excel_path: str, output_path: str = None) -> str:
          nit_col = df_client.columns[[c.upper() == 'NIT' for c in df_client.columns]][0]
          
     # 2. Normalizar NITs y remover nulos para la consulta
-    df_client['NIT_NORMALIZADO'] = df_client[nit_col].apply(lambda x: normalize_nit(x) if pd.notna(x) else None)
+    def safe_normalize(x):
+        try:
+            return normalize_nit(x) if pd.notna(x) else None
+        except ValueError:
+            return None
+            
+    df_client['NIT_NORMALIZADO'] = df_client[nit_col].apply(safe_normalize)
     df_procesar = df_client.dropna(subset=['NIT_NORMALIZADO']).copy()
     
     nits_unicos = df_procesar['NIT_NORMALIZADO'].unique().tolist()
@@ -102,8 +108,11 @@ def generate_report(client_excel_path: str, output_path: str = None) -> str:
         en_ficticios = check_nit_dian(nit)
         
         # Buscar en cache lote
-        bdme_info = df_bdme[df_bdme['nit'] == nit]
-        estado_bdme = bdme_info['estado_bdme'].iloc[0] if not bdme_info.empty else "INDETERMINADO"
+        if not df_bdme.empty and 'nit' in df_bdme.columns:
+            bdme_info = df_bdme[df_bdme['nit'] == nit]
+            estado_bdme = bdme_info['estado_bdme'].iloc[0] if not bdme_info.empty else "INDETERMINADO"
+        else:
+            estado_bdme = "INDETERMINADO"
         
         # API facturador
         fact_habilitado = check_facturador_electronico(nit)
@@ -137,7 +146,11 @@ def generate_report(client_excel_path: str, output_path: str = None) -> str:
             
             # Pestaña Resumen
             total_analizados = len(df_resultado)
-            counts = df_resultado['NIVEL_RIESGO'].value_counts()
+            if df_resultado.empty:
+                # Columna mínima requerida para el resumen si está vacío
+                counts = pd.Series(dtype=int)
+            else:
+                counts = df_resultado['NIVEL_RIESGO'].value_counts()
             
             resumen_data = {
                 "Métrica": ["Total Analizados", "Total ALTO", "Total MEDIO", "Total REVISAR/INDETERMINADO", "Total BAJO", "Fecha Análisis"],

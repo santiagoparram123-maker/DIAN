@@ -32,26 +32,29 @@ Este repositorio contiene la **estructura completa del proyecto**, archivos base
 
 ```text
 DIAN_Auditor_B2B
-┣ 📂 data
-┃ ┣ 📜 dian_ficticios.parquet → Caché base limpia de DIAN
-┃ ┣ 📜 bdme_cache.parquet → Caché temporal (30 días) para BDME
-┃ ┗ 📜 catalogo_ejemplo.csv → Datos de prueba para clasificación IA
-┣ 📂 outputs
-┃ ┗ 📜 reporte_cumplimiento_...xlsx → Reportes y métricas generadas
-┣ 📂 src
-┃ ┣ 📜 bdme_scraper.py → Motor Selenium para CHIP/BDME
-┃ ┣ 📜 dian_processor.py → Limpieza de base DIAN Excel
-┃ ┣ 📜 report_engine.py → Calculador de matriz de riesgo e inyector Excel
-┃ ┣ 📜 clasificador.py → Clasificador Arancelario IA (Ollama)
-┃ ┗ 📜 utils.py → Utilidades de normalización NIT
-┣ 📂 tests
-┃ ┗ 📜 test_...py → Pruebas unitarias para pytest
-┣ 📜 Proveedores-Ficticios-16022026.xlsx → Archivo maestro original
-┣ 📜 dashboard.html → UI Interactiva Simulada y Panel B2B
-┣ 📜 clasificador.html → UI del Auto-Clasificador IA (Dark Mode)
-┣ 📜 requirements.txt → Dependencias de Python
-┣ 📜 .env.example → Configuración de claves (Template)
-┗ 📜 README.md → Este documento 🔥
+┣ 📂 api                    # Capa de Interoperabilidad (FastAPI)
+┃ ┗ 📜 main.py              # Endpoints: /api/auditar-terceros, /api/clasificar-masivo
+┣ 📂 data                   # Gestión de datos y datasets
+┃ ┣ 📂 raw                  # Archivos maestros originales (Proveedores-Ficticios...)
+┃ ┣ 📂 samples              # Archivos de prueba para demostraciones
+┃ ┣ 📜 processed            # Parquet files procesados
+┃ ┣ 📜 historico_dian.csv   # Dataset para RAG (Clasificador IA)
+┃ ┣ 📜 dian_ficticios.parquet
+┃ ┗ 📜 bdme_cache.parquet
+┣ 📂 docs                   # Documentación técnica y requerimientos
+┣ 📂 logs                   # Trazas y salidas de ejecución
+┣ 📂 scripts                # Scripts de depuración y herramientas internas
+┣ 📂 src                    # Núcleo de la lógica de negocio (Core)
+┃ ┣ 📜 bdme_scraper.py      # Motor Selenium para deudores (CHIP)
+┃ ┣ 📜 dian_processor.py    # Procesador de base DIAN con Polars
+┃ ┣ 📜 report_engine.py     # Generador de reportes de cumplimiento
+┃ ┣ 📜 clasificador.py      # Clasificador IA con RAG (Phi / SentenceTransformers)
+┃ ┗ 📜 utils.py             # Utilidades y normalización
+┣ 📂 tests                  # Pruebas automatizadas (Pytest)
+┣ 📜 dashboard.html         # Portal de Auditoría (Frontend)
+┣ 📜 clasificador.html      # Portal de Clasificación IA (Frontend)
+┣ 📜 requirements.txt       # Dependencias del proyecto
+┗ 📜 README.md              # Guía principal del sistema
 ```
 
 ---
@@ -60,13 +63,48 @@ DIAN_Auditor_B2B
 
 | Tecnología | Descripción | Emoji |
 | :--- | :--- | :---: |
-| **Python 3.10+** | Lenguaje principal para backend y scraping | ⚙️ |
-| **Ollama / Qwen** | IA local asíncrona para clasificación arancelaria masiva | 🧠 |
-| **Selenium WebDriver** | Automatización web Headless para BDME (CHIP) | 🤖 |
-| **Pandas / PyArrow** | Análisis, validación y exportación de datos (Excel/Parquet/CSV) | 📊 |
-| **HTML / CSS / JS Vanilla** | Diseño de interfaz premium Micro-SaaS B2B | 🎨 |
-| **Pytest** | Entorno para configuración de pruebas unitarias | 🧪 |
-| **Git + VS Code** | Control de versiones y entorno de desarrollo | 🚀 |
+| **Python 3.10+** | Lenguaje principal (Backend / Scraping / ML) | ⚙️ |
+| **FastAPI** | Orquestador asíncrono y documentación Swagger | 🚀 |
+| **Ollama / Phi-4** | IA local para clasificación (Reasoning Engine) | 🧠 |
+| **FAISS / SentenceTransformers** | Arquitectura RAG (Retrieval-Augmented Generation) | 🔍 |
+| **Polars** | Procesamiento de datos ultrarrápido out-of-core | ⚡ |
+| **Selenium WebDriver** | Automatización web para consultas gubernamentales | 🤖 |
+
+---
+
+## 🧠 Arquitectura RAG (Retrieval-Augmented Generation)
+
+Para evitar alucinaciones en la clasificación arancelaria, el sistema implementa un pipeline de RAG:
+1. **Vectorización**: Las descripciones históricas de la DIAN se convierten en vectores densos usando `all-MiniLM-L6-v2`.
+2. **Recuperación**: Al recibir un producto nuevo, se buscan los Top-3 ejemplos más similares en la base vectorial local.
+3. **Inyección de Contexto**: Se envía el producto + ejemplos históricos al modelo `phi4` para una decisión informada y determinística.
+
+---
+
+## ⚙️ Cómo Ejecutar el Proyecto
+
+**1️⃣ Instalación de Entorno**
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+**2️⃣ Configuración de IA Local**
+```bash
+ollama run phi4
+```
+
+**3️⃣ Iniciar Servidor API**
+```bash
+python api/main.py
+# Visita http://localhost:8000/docs para el Swagger automático
+```
+
+**4️⃣ Ejecutar Pruebas**
+```bash
+pytest tests/
+```
 
 ---
 
@@ -82,64 +120,16 @@ DIAN_Auditor_B2B
 
 ---
 
-## ⚙️ Cómo Ejecutar el Proyecto
-
-**1️⃣ Clonar el repositorio**
-
-```bash
-git clone https://github.com/usuario/DIAN_Auditor_B2B.git
-cd DIAN_Auditor_B2B
-```
-
-**2️⃣ Crear y activar un entorno virtual**
-
-```bash
-python -m venv venv
-source venv/bin/activate  # macOS/Linux
-venv\Scripts\activate     # Windows
-```
-
-**3️⃣ Instalar dependencias requeridas**
-
-```bash
-pip install -r requirements.txt
-```
-
-**4️⃣ Requisitos para el Módulo IA (Opcional, si usas `clasificador.py`)**
-
-Asegúrate de tener [Ollama](https://ollama.com/) instalado en tu sistema local.
-```bash
-ollama pull qwen2.5-coder:7b
-ollama serve
-```
-
-**5️⃣ Ejecutar pruebas o abrir interfaz**
-
-```bash
-# Ejecutar pipeline completo de cumplimiento en terminal
-python src/report_engine.py
-
-# Ejecutar el clasificador arancelario masivo en terminal
-python src/clasificador.py data/catalogo_ejemplo.csv
-
-# Ejecutar el suite unitario
-pytest tests/
-```
-*(Para verificar la UI, abre `dashboard.html` o `clasificador.html` en tu navegador favorito)*
-
----
-
 ## 🧩 Estado Actual del Proyecto
 
-| Componente | Descripción | Estado |
-| :---: | :--- | :---: |
-| 📂 **Estructura base del proyecto** | Setup del entorno, `.env` y requerimientos | ✅ Completo |
-| 🗃️ **Módulo 1: Procesador DIAN** | Extracción ETL de "Proveedores Ficticios" | ✅ Completo |
-| 🤖 **Módulo 2: Scraper BDME** | Minería de morosidad con Selenium y JSF | ✅ Completo |
-| 📈 **Módulo 3: Motor de Reportes** | Matriz de riesgo tributario en Excel multicapa | ✅ Completo |
-| 🧠 **Módulo 4: Clasificador IA** | Asignación automática de HS Codes con Qwen2.5 vía Ollama | ✅ Completo |
-| 🎨 **Dashboard Web (UI)** | Panel mock de progreso premium sin librerías externas | ✅ Completo |
-| 📄 **Documentación e integraciones** | Readme, git init y walkthrough final | ✅ Completo |
+| Componente | Estado |
+| :---: | :---: |
+| 📂 **Estructura Organizada** | ✅ |
+| 🚀 **API FastAPI Finalizada** | ✅ |
+| 🧠 **IA Clasificadora con RAG** | ✅ |
+| 🤖 **Scraper BDME Resiliente** | ✅ |
+| 📈 **Generación de Reportes Excel** | ✅ |
+| 🎨 **Interfaz Dashboard B2B** | ✅ |
 
 ---
 
