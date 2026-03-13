@@ -1,1374 +1,507 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clasificador Arancelario IA — DIAN Auditor B2B</title>
-    <meta name="description"
-        content="Auto-clasificador arancelario masivo con inteligencia artificial para importaciones colombianas. Asigna códigos HS automáticamente usando phi4:latest.">
-    
-    <!-- Librerías Externas -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="description" content="Auto-clasificador arancelario masivo con IA local (phi4) para importaciones colombianas.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
-        /* ================================================================
-           DESIGN SYSTEM — Variables compartidas con dashboard.html
-           ================================================================ */
         :root {
-            --bg-color: #0f172a;
-            --bg-surface: #0b1120;
-            --card-bg: #1e293b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --accent-glow: rgba(59, 130, 246, 0.15);
-            --border-color: #334155;
-            --purple: #8b5cf6;
-            --purple-glow: rgba(139, 92, 246, 0.15);
+            --bg-base:#0b1120; --bg-surface:#111827; --bg-card:#1e293b; --bg-card-hover:#263548;
+            --text-primary:#f1f5f9; --text-secondary:#94a3b8; --text-muted:#64748b;
+            --accent:#3b82f6; --accent-light:#60a5fa; --border:#1e293b; --border-light:#334155;
+            --conf-alta:#22c55e; --conf-alta-bg:rgba(34,197,94,0.12);
+            --conf-media:#f59e0b; --conf-media-bg:rgba(245,158,11,0.12);
+            --conf-baja:#ef4444; --conf-baja-bg:rgba(239,68,68,0.12);
+            --sidebar-w:240px;
+        }
+        * { box-sizing:border-box; margin:0; padding:0; font-family:'Inter',sans-serif; }
+        body { background:var(--bg-base); color:var(--text-primary); min-height:100vh; display:flex; }
+
+        /* SIDEBAR */
+        .sidebar { width:var(--sidebar-w); background:var(--bg-surface); border-right:1px solid var(--border-light); display:flex; flex-direction:column; position:fixed; top:0; left:0; height:100vh; z-index:200; }
+        .sidebar-brand { padding:1.5rem; border-bottom:1px solid var(--border-light); display:flex; align-items:center; gap:12px; }
+        .sidebar-brand .icon { width:36px; height:36px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; font-weight:800; }
+        .sidebar-brand span { font-weight:700; font-size:1.05rem; background:linear-gradient(135deg,#60a5fa,#a78bfa); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+        .sidebar-nav { padding:1rem 0; flex:1; }
+        .nav-section { padding:0.5rem 1.5rem; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted); margin-top:0.5rem; }
+        .nav-item { display:flex; align-items:center; gap:12px; padding:0.7rem 1.5rem; color:var(--text-secondary); text-decoration:none; font-size:0.88rem; border-left:3px solid transparent; transition:all 0.2s; }
+        .nav-item:hover { background:rgba(59,130,246,0.08); color:var(--text-primary); }
+        .nav-item.active { background:rgba(59,130,246,0.12); color:var(--accent-light); border-left-color:var(--accent); font-weight:500; }
+        .nav-item svg { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+        .sidebar-footer { padding:1.2rem 1.5rem; border-top:1px solid var(--border-light); font-size:0.75rem; color:var(--text-muted); }
+
+        /* MAIN */
+        .main { margin-left:var(--sidebar-w); flex:1; display:flex; flex-direction:column; }
+        .topbar { background:var(--bg-surface); border-bottom:1px solid var(--border-light); padding:1rem 2rem; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:100; }
+        .topbar h1 { font-size:1.3rem; font-weight:700; }
+        .topbar .badge-ia { display:inline-flex; align-items:center; gap:6px; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); padding:0.3rem 0.9rem; border-radius:99px; font-size:0.78rem; color:#c4b5fd; }
+        .topbar .badge-ia .pulse { width:7px; height:7px; background:#a78bfa; border-radius:50%; animation:pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(167,139,250,0.4)} 50%{box-shadow:0 0 0 6px rgba(167,139,250,0)} }
+
+        .btn { padding:0.55rem 1.2rem; border-radius:8px; border:none; font-size:0.85rem; cursor:pointer; font-weight:500; display:inline-flex; align-items:center; gap:8px; transition:all 0.2s; }
+        .btn-primary { background:var(--accent); color:#fff; }
+        .btn-primary:hover { background:#2563eb; }
+        .btn-outline { background:transparent; border:1px solid var(--border-light); color:var(--text-secondary); }
+        .btn-outline:hover { border-color:var(--accent); color:var(--accent-light); }
+        .btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+        .content { padding:2rem; flex:1; }
+
+        /* UPLOAD */
+        .upload-section { max-width:800px; margin:0 auto 2rem; }
+        .upload-card { background:var(--bg-card); border-radius:16px; border:1px solid var(--border-light); padding:2rem; }
+        .upload-card h2 { font-size:1.1rem; font-weight:600; margin-bottom:0.3rem; }
+        .upload-card .subtitle { color:var(--text-secondary); font-size:0.85rem; margin-bottom:1.5rem; }
+        .format-hint { background:var(--bg-base); border-radius:8px; padding:0.8rem 1rem; font-family:'Courier New',monospace; font-size:0.78rem; color:var(--text-secondary); margin-bottom:1.5rem; border:1px solid var(--border-light); }
+        .format-hint .header { color:var(--accent-light); font-weight:600; margin-bottom:0.3rem; }
+        .drop-zone { border:2px dashed var(--border-light); border-radius:12px; padding:2.5rem; text-align:center; cursor:pointer; transition:all 0.3s; position:relative; background:rgba(59,130,246,0.03); }
+        .drop-zone:hover,.drop-zone.dragover { border-color:var(--accent); background:rgba(59,130,246,0.06); }
+        .drop-zone-icon { font-size:2.5rem; margin-bottom:0.8rem; }
+        .drop-zone-text { color:var(--text-secondary); font-size:0.9rem; }
+        .drop-zone-text strong { color:var(--text-primary); }
+        .file-input { position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+        .upload-actions { display:flex; gap:12px; margin-top:1.5rem; }
+
+        /* PROGRESS */
+        .progress-section { display:none; margin-top:1.5rem; }
+        .progress-bar-bg { width:100%; height:8px; background:var(--bg-base); border-radius:99px; overflow:hidden; }
+        .progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),#8b5cf6); border-radius:99px; width:0%; transition:width 0.3s; }
+        .progress-info { display:flex; justify-content:space-between; margin-top:0.5rem; font-size:0.8rem; color:var(--text-secondary); }
+        .progress-detail { font-size:0.78rem; color:var(--text-muted); margin-top:0.3rem; }
+
+        /* RESULTS */
+        .results-section { display:none; animation:fadeUp 0.5s ease; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+        .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:2rem; }
+        .kpi-card { background:var(--bg-card); border-radius:14px; padding:1.5rem; border:1px solid var(--border-light); transition:transform 0.2s; }
+        .kpi-card:hover { transform:translateY(-2px); }
+        .kpi-label { font-size:0.78rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.5rem; }
+        .kpi-value { font-size:2.2rem; font-weight:800; }
+        .kpi-card.alta .kpi-value { color:var(--conf-alta); }
+        .kpi-card.media .kpi-value { color:var(--conf-media); }
+        .kpi-card.baja .kpi-value { color:var(--conf-baja); }
+        .kpi-card.total .kpi-value { color:var(--accent-light); }
+
+        .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:2rem; }
+        .chart-card { background:var(--bg-card); border-radius:14px; padding:1.5rem; border:1px solid var(--border-light); }
+        .chart-card h3 { font-size:0.95rem; font-weight:600; margin-bottom:1rem; display:flex; align-items:center; gap:8px; }
+        .chart-card h3 .dot { width:8px; height:8px; border-radius:50%; }
+        .chart-wrapper { position:relative; height:250px; }
+
+        .table-section { background:var(--bg-card); border-radius:14px; border:1px solid var(--border-light); overflow:hidden; }
+        .table-header { padding:1.2rem 1.5rem; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-light); }
+        .table-header h3 { font-size:0.95rem; font-weight:600; }
+        table { width:100%; border-collapse:collapse; }
+        thead th { padding:0.8rem 1rem; text-align:left; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); background:var(--bg-surface); border-bottom:1px solid var(--border-light); font-weight:600; }
+        tbody td { padding:0.85rem 1rem; font-size:0.85rem; border-bottom:1px solid rgba(51,65,85,0.4); }
+        tbody tr:hover { background:rgba(59,130,246,0.04); }
+        td.mono { font-family:'Courier New',monospace; font-weight:600; color:var(--text-secondary); }
+        td.desc { max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .hs-prefix { color:var(--accent-light); font-weight:700; }
+
+        .badge { padding:0.3rem 0.7rem; border-radius:99px; font-size:0.72rem; font-weight:600; display:inline-flex; align-items:center; gap:5px; }
+        .badge .dot { width:6px; height:6px; border-radius:50%; }
+        .badge-alta { background:var(--conf-alta-bg); color:var(--conf-alta); }
+        .badge-alta .dot { background:var(--conf-alta); }
+        .badge-media { background:var(--conf-media-bg); color:var(--conf-media); }
+        .badge-media .dot { background:var(--conf-media); }
+        .badge-baja { background:var(--conf-baja-bg); color:var(--conf-baja); }
+        .badge-baja .dot { background:var(--conf-baja); }
 
-            /* Colores de Confianza */
-            --conf-alta-bg: #052e16;
-            --conf-alta-text: #86efac;
-            --conf-alta-border: #15803d;
+        .pagination { display:flex; justify-content:center; gap:6px; padding:1rem; }
+        .page-btn { background:var(--bg-surface); border:1px solid var(--border-light); color:var(--text-secondary); padding:0.4rem 0.8rem; border-radius:6px; cursor:pointer; font-size:0.8rem; transition:all 0.2s; }
+        .page-btn:hover,.page-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 
-            --conf-media-bg: #422006;
-            --conf-media-text: #fcd34d;
-            --conf-media-border: #92400e;
-
-            --conf-baja-bg: #450a0a;
-            --conf-baja-text: #fca5a5;
-            --conf-baja-border: #991b1b;
-
-            --conf-error-bg: #1c1917;
-            --conf-error-text: #a8a29e;
-            --conf-error-border: #57534e;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* ================================================================
-           HEADER — Consistente con dashboard.html + navegación
-           ================================================================ */
-        header {
-            background-color: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(12px);
-            padding: 1.2rem 2rem;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-decoration: none;
-        }
-
-        .nav-divider {
-            width: 1px;
-            height: 28px;
-            background: var(--border-color);
-        }
-
-        .module-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--accent-glow);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            padding: 0.4rem 1rem;
-            border-radius: 99px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: #93c5fd;
-        }
-
-        .module-badge .pulse {
-            width: 8px;
-            height: 8px;
-            background: #60a5fa;
-            border-radius: 50%;
-            animation: pulse-glow 2s infinite;
-        }
-
-        @keyframes pulse-glow {
-
-            0%,
-            100% {
-                box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.4);
-            }
-
-            50% {
-                box-shadow: 0 0 0 6px rgba(96, 165, 250, 0);
-            }
-        }
-
-        .nav-link {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: color 0.2s;
-            padding: 0.4rem 0.8rem;
-            border-radius: 6px;
-        }
-
-        .nav-link:hover {
-            color: var(--text-main);
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        /* ================================================================
-           LAYOUT PRINCIPAL
-           ================================================================ */
-        .container {
-            flex: 1;
-            padding: 2rem;
-            max-width: 1400px;
-            margin: 0 auto;
-            width: 100%;
-            display: grid;
-            grid-template-columns: 380px 1fr;
-            gap: 2rem;
-        }
-
-        /* ================================================================
-           SIDEBAR — Upload Panel (Dropzone CSV)
-           ================================================================ */
-        .upload-panel {
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            padding: 2rem;
-            border: 1px solid var(--border-color);
-            height: fit-content;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-            position: sticky;
-            top: 90px;
-        }
-
-        .upload-panel h2 {
-            font-size: 1.2rem;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .upload-panel p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            margin-bottom: 1.5rem;
-            line-height: 1.6;
-        }
-
-        .csv-format-hint {
-            background: rgba(15, 23, 42, 0.5);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            font-family: 'Courier New', monospace;
-            font-size: 0.78rem;
-            color: var(--text-muted);
-            line-height: 1.6;
-        }
-
-        .csv-format-hint .header-line {
-            color: var(--accent);
-            font-weight: 600;
-        }
-
-        .drop-zone {
-            border: 2px dashed var(--border-color);
-            border-radius: 12px;
-            padding: 2.5rem 1.5rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            background: rgba(15, 23, 42, 0.3);
-        }
-
-        .drop-zone:hover,
-        .drop-zone.dragover {
-            border-color: var(--accent);
-            background: var(--accent-glow);
-            transform: translateY(-2px);
-        }
-
-        .drop-zone-icon {
-            font-size: 2.8rem;
-            margin-bottom: 0.8rem;
-            display: block;
-        }
-
-        .drop-zone-text {
-            font-size: 0.95rem;
-            color: var(--text-muted);
-        }
-
-        .drop-zone-text strong {
-            color: var(--accent);
-        }
-
-        .file-input {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent), var(--purple));
-            color: white;
-            border: none;
-            padding: 0.9rem 1.5rem;
-            border-radius: 10px;
-            font-weight: 600;
-            width: 100%;
-            margin-top: 1.5rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-primary::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 200%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-            transition: left 0.5s;
-        }
-
-        .btn-primary:hover::before {
-            left: 100%;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
-        }
-
-        .btn-primary:active {
-            transform: scale(0.98);
-        }
-
-        .btn-primary:disabled {
-            background: var(--border-color);
-            color: var(--text-muted);
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .btn-primary:disabled::before {
-            display: none;
-        }
-
-        /* Model Info */
-        .model-info {
-            margin-top: 1.5rem;
-            padding-top: 1.2rem;
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .model-chip {
-            background: var(--purple-glow);
-            border: 1px solid rgba(139, 92, 246, 0.3);
-            color: #c4b5fd;
-            padding: 0.35rem 0.75rem;
-            border-radius: 6px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            font-family: 'Courier New', monospace;
-        }
-
-        .model-label {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-        }
-
-        /* ================================================================
-           PROGRESS SECTION
-           ================================================================ */
-        .progress-container {
-            margin-top: 1.5rem;
-            display: none;
-        }
-
-        .progress-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-
-        .progress-bar-bg {
-            background-color: var(--border-color);
-            border-radius: 99px;
-            height: 10px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-            height: 100%;
-            width: 0%;
-            border-radius: 99px;
-            transition: width 0.4s ease;
-            position: relative;
-        }
-
-        .progress-fill::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 100%);
-            animation: shimmer 1.5s infinite;
-            transform: skewX(-20deg);
-        }
-
-        @keyframes shimmer {
-            0% {
-                transform: translateX(-100%) skewX(-20deg);
-            }
-
-            100% {
-                transform: translateX(200%) skewX(-20deg);
-            }
-        }
-
-        .progress-detail {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-top: 8px;
-            text-align: center;
-        }
-
-        .progress-item-label {
-            margin-top: 12px;
-            padding: 0.6rem 1rem;
-            background: rgba(15, 23, 42, 0.5);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 0.82rem;
-            color: var(--text-muted);
-            line-height: 1.4;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .progress-item-label strong {
-            color: var(--text-main);
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-4px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* ================================================================
-           RESULTS PANEL
-           ================================================================ */
-        .results-panel {
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            border: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.5s ease, transform 0.5s ease;
-        }
-
-        .results-panel.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* KPIs */
-        .kpi-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            padding: 1.5rem;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(15, 23, 42, 0.4);
-        }
-
-        .kpi-card {
-            background: var(--card-bg);
-            padding: 1.2rem;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .kpi-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-        }
-
-        .kpi-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-        }
-
-        .kpi-val {
-            font-size: 2rem;
-            font-weight: 700;
-        }
-
-        .kpi-card.total .kpi-val {
-            background: linear-gradient(135deg, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .kpi-card.alta .kpi-val {
-            color: var(--conf-alta-text);
-        }
-
-        .kpi-card.media .kpi-val {
-            color: var(--conf-media-text);
-        }
-
-        .kpi-card.baja .kpi-val {
-            color: var(--conf-baja-text);
-        }
-
-        /* Table */
-        .table-container {
-            flex: 1;
-            overflow: auto;
-            padding: 0 1.5rem 1.5rem 1.5rem;
-        }
-
-        .table-header-row {
-            position: sticky;
-            top: 0;
-            background-color: var(--card-bg);
-            z-index: 10;
-            padding-top: 1.5rem;
-            padding-bottom: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .table-header-row h3 {
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            text-align: left;
-        }
-
-        th {
-            padding: 1rem;
-            background-color: rgba(15, 23, 42, 0.6);
-            color: var(--text-muted);
-            font-weight: 600;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            position: sticky;
-            top: 60px;
-            z-index: 5;
-            backdrop-filter: blur(4px);
-        }
-
-        th:first-child {
-            border-top-left-radius: 8px;
-            border-bottom-left-radius: 8px;
-        }
-
-        th:last-child {
-            border-top-right-radius: 8px;
-            border-bottom-right-radius: 8px;
-        }
-
-        td {
-            padding: 1rem;
-            font-size: 0.9rem;
-            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
-            vertical-align: middle;
-        }
-
-        tr {
-            transition: background-color 0.2s ease;
-        }
-
-        tr:hover {
-            background-color: rgba(255, 255, 255, 0.03);
-        }
-
-        .desc-cell {
-            max-width: 350px;
-            line-height: 1.5;
-            color: var(--text-muted);
-        }
-
-        .hs-code-cell {
-            font-family: 'Courier New', monospace;
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text-main);
-            letter-spacing: 1px;
-        }
-
-        .hs-code-cell .hs-prefix {
-            color: var(--accent);
-        }
-
-        /* Badges de Confianza */
-        .badge {
-            padding: 0.4rem 0.9rem;
-            border-radius: 99px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            border: 1px solid;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .badge-alta {
-            background-color: var(--conf-alta-bg);
-            color: var(--conf-alta-text);
-            border-color: var(--conf-alta-border);
-        }
-
-        .badge-media {
-            background-color: var(--conf-media-bg);
-            color: var(--conf-media-text);
-            border-color: var(--conf-media-border);
-        }
-
-        .badge-baja {
-            background-color: var(--conf-baja-bg);
-            color: var(--conf-baja-text);
-            border-color: var(--conf-baja-border);
-        }
-
-        .badge-error {
-            background-color: var(--conf-error-bg);
-            color: var(--conf-error-text);
-            border-color: var(--conf-error-border);
-        }
-
-        .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .badge-alta .dot {
-            background: var(--conf-alta-text);
-            box-shadow: 0 0 8px var(--conf-alta-text);
-        }
-
-        .badge-media .dot {
-            background: var(--conf-media-text);
-            box-shadow: 0 0 8px var(--conf-media-text);
-        }
-
-        .badge-baja .dot {
-            background: var(--conf-baja-text);
-            box-shadow: 0 0 8px var(--conf-baja-text);
-        }
-
-        .badge-error .dot {
-            background: var(--conf-error-text);
-            box-shadow: 0 0 8px var(--conf-error-text);
-        }
-
-        /* Download Button */
-        .download-btn {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .download-btn:hover {
-            background: rgba(255, 255, 255, 0.05);
-            border-color: var(--text-muted);
-        }
-
-        /* Empty State */
-        .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 4rem 2rem;
-            min-height: 400px;
-        }
-
-        .empty-state-icon {
-            font-size: 4rem;
-            margin-bottom: 1.5rem;
-            opacity: 0.5;
-        }
-
-        .empty-state h3 {
-            color: var(--text-muted);
-            font-size: 1.2rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .empty-state p {
-            color: var(--border-color);
-            font-size: 0.9rem;
-            max-width: 320px;
-        }
-
-        /* ================================================================
-           RESPONSIVE
-           ================================================================ */
-        @media (max-width: 1024px) {
-            .container {
-                grid-template-columns: 1fr;
-            }
-
-            .upload-panel {
-                position: static;
-            }
-
-            .kpi-row {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 600px) {
-            header {
-                padding: 1rem;
-                flex-wrap: wrap;
-                gap: 0.5rem;
-            }
-
-            .kpi-row {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .container {
-                padding: 1rem;
-            }
-
-            td,
-            th {
-                padding: 0.7rem 0.5rem;
-            }
-
-            .desc-cell {
-                max-width: 180px;
-            }
-        }
+        @media(max-width:1024px) { .kpi-grid{grid-template-columns:repeat(2,1fr)} .charts-row{grid-template-columns:1fr} .sidebar{display:none} .main{margin-left:0} }
     </style>
 </head>
-
 <body>
-
-    <header>
-        <div class="header-left">
-            <a href="dashboard.html" class="logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    <path d="M9 12l2 2 4-4"></path>
-                </svg>
-                DIAN Auditor B2B
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-brand"><div class="icon">D</div><span>DIAN Auditor</span></div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Principal</div>
+            <a href="dashboard.html" class="nav-item">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                Dashboard
             </a>
-            <div class="nav-divider"></div>
-            <div class="module-badge">
-                <span class="pulse"></span>
+            <a href="clasificador.html" class="nav-item active">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 Clasificador IA
-            </div>
-        </div>
-        <a href="dashboard.html" class="nav-link">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M15 18l-6-6 6-6"></path>
-            </svg>
-            Volver al Dashboard
-        </a>
-    </header>
+            </a>
+            <div class="nav-section">Sistema</div>
+            <a href="http://localhost:8000/docs" target="_blank" class="nav-item">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                API Swagger
+            </a>
+        </nav>
+        <div class="sidebar-footer">DIAN Auditor B2B © 2026<br>AAA Agency of AI — v2.0</div>
+    </aside>
 
-    <div class="container">
-        <!-- ================ SIDEBAR: Upload CSV ================ -->
-        <div class="upload-panel" id="uploadPanel">
-            <h2>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                </svg>
-                Catálogo de Productos
-            </h2>
-            <p>Sube un archivo CSV o Excel con las descripciones de mercancías. La IA clasificará cada producto con su partida
-                arancelaria (HS Code) automáticamente.</p>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Formatos: <strong>.csv, .xlsx, .xls</strong></p>
-
-            <div class="csv-format-hint">
-                <div class="header-line">ID_PRODUCTO,DESCRIPCION_MERCANCIA</div>
-                P001,"Zapatos de cuero italiano..."<br>
-                P002,"Camisetas de algodón..."
-            </div>
-
-            <div class="drop-zone" id="dropZone">
-                <div class="drop-zone-icon">📋</div>
-                <div class="drop-zone-text" id="dropText">
-                    <strong>Arrastra tu archivo aquí</strong><br>
-                    <span style="font-size:0.85rem">o haz clic para explorar (.csv, .xlsx, .xls)</span>
-                </div>
-                <input type="file" class="file-input" id="fileInput" accept=".csv, .xlsx, .xls">
-            </div>
-
-            <div class="progress-container" id="progressContainer">
-                <div class="progress-header">
-                    <span id="progressStatus">Preparando modelo IA...</span>
-                    <span id="progressPercentage">0%</span>
-                </div>
-                <div class="progress-bar-bg">
-                    <div class="progress-fill" id="progressBar"></div>
-                </div>
-                <div class="progress-detail" id="progressDetail">Cargando phi4:latest...</div>
-                <div class="progress-item-label" id="progressItem" style="display:none;"></div>
-            </div>
-
-            <button class="btn-primary" id="startBtn" disabled>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
-                </svg>
-                Clasificar con IA
-            </button>
-
-            <div class="model-info">
-                <span class="model-chip">phi4:latest</span>
-                <span class="model-label">Modelo Local (Ollama)</span>
-            </div>
+    <!-- MAIN -->
+    <main class="main">
+        <div class="topbar">
+            <h1>🧠 Clasificador Arancelario IA</h1>
+            <div class="badge-ia"><span class="pulse"></span> phi4:latest vía Ollama (RAG)</div>
         </div>
 
-        <!-- ================ MAIN: Results Panel ================ -->
-        <div class="results-panel" id="resultsPanel">
-            <!-- Empty State (Initial) -->
-            <div class="empty-state" id="emptyState">
-                <div class="empty-state-icon">🔍</div>
-                <h3>Sin clasificaciones aún</h3>
-                <p>Sube un archivo CSV con tus productos para que la IA asigne las partidas arancelarias
-                    automáticamente.</p>
-            </div>
+        <div class="content">
+            <!-- UPLOAD -->
+            <section class="upload-section" id="uploadSection">
+                <div class="upload-card">
+                    <h2>📦 Catálogo de Productos</h2>
+                    <p class="subtitle">Sube un archivo CSV o Excel con descripciones de mercancías. La IA asignará el código HS automáticamente.</p>
+                    <div class="format-hint">
+                        <div class="header">ID_PRODUCTO, DESCRIPCION_MERCANCIA</div>
+                        P001, "Zapatos de cuero italiano..."<br>
+                        P002, "Camisetas de algodón..."
+                    </div>
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-zone-icon">📋</div>
+                        <div class="drop-zone-text" id="dropText"><strong>Arrastra tu archivo aquí</strong><br>o haz clic para explorar (.csv, .xlsx, .xls)</div>
+                        <input type="file" class="file-input" id="fileInput" accept=".csv,.xlsx,.xls">
+                    </div>
+                    <div class="upload-actions">
+                        <button class="btn btn-primary" id="startBtn" disabled>🚀 Clasificar con IA</button>
+                        <button class="btn btn-outline" id="pdfBtn" style="display:none" onclick="downloadPDF()">📄 Reporte PDF</button>
+                    </div>
+                    <div class="progress-section" id="progressSection">
+                        <div class="progress-bar-bg"><div class="progress-fill" id="progressBar"></div></div>
+                        <div class="progress-info"><span id="progressStatus">Inicializando...</span><span id="progressPct">0%</span></div>
+                        <div class="progress-detail" id="progressDetail"></div>
+                    </div>
+                </div>
+            </section>
 
-            <!-- KPIs (Hidden initially) -->
-            <div class="kpi-row" id="kpiRow" style="display:none;">
-                <div class="kpi-card total">
-                    <span class="kpi-label">Total Clasificados</span>
-                    <span class="kpi-val" id="kpiTotal">0</span>
-                </div>
-                <div class="kpi-card alta">
-                    <span class="kpi-label">Confianza Alta</span>
-                    <span class="kpi-val" id="kpiAlta">0</span>
-                </div>
-                <div class="kpi-card media">
-                    <span class="kpi-label">Confianza Media</span>
-                    <span class="kpi-val" id="kpiMedia">0</span>
-                </div>
-                <div class="kpi-card baja">
-                    <span class="kpi-label">Confianza Baja</span>
-                    <span class="kpi-val" id="kpiBaja">0</span>
-                </div>
-            </div>
-
-            <!-- Results Table (Hidden initially) -->
-            <div class="table-container" id="tableContainer" style="display:none;">
-                <div class="table-header-row">
-                    <h3>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="3" y1="9" x2="21" y2="9"></line>
-                            <line x1="3" y1="15" x2="21" y2="15"></line>
-                            <line x1="9" y1="3" x2="9" y2="21"></line>
-                        </svg>
-                        Resultado de Clasificación IA
-                    </h3>
-                    <button class="download-btn" id="downloadBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Exportar CSV
-                    </button>
+            <!-- RESULTS -->
+            <section class="results-section" id="resultsSection">
+                <div class="kpi-grid">
+                    <div class="kpi-card total"><div class="kpi-label">Productos Clasificados</div><div class="kpi-value" id="kpiTotal">0</div></div>
+                    <div class="kpi-card alta"><div class="kpi-label">Confianza Alta</div><div class="kpi-value" id="kpiAlta">0</div></div>
+                    <div class="kpi-card media"><div class="kpi-label">Confianza Media</div><div class="kpi-value" id="kpiMedia">0</div></div>
+                    <div class="kpi-card baja"><div class="kpi-label">Confianza Baja</div><div class="kpi-value" id="kpiBaja">0</div></div>
                 </div>
 
-                <table id="resultsTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Descripción Mercancía</th>
-                            <th>HS Code</th>
-                            <th>Confianza IA</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody">
-                        <!-- Filas inyectadas por JS -->
-                    </tbody>
-                </table>
-            </div>
+                <div class="charts-row">
+                    <div class="chart-card">
+                        <h3><span class="dot" style="background:var(--accent)"></span>Distribución de Confianza</h3>
+                        <div class="chart-wrapper"><canvas id="confDoughnut"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3><span class="dot" style="background:var(--conf-media)"></span>Top Capítulos Arancelarios</h3>
+                        <div class="chart-wrapper"><canvas id="chapterBar"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="table-section">
+                    <div class="table-header">
+                        <h3>📋 Resultados de Clasificación</h3>
+                        <div style="display:flex;gap:8px">
+                            <button class="btn btn-outline" onclick="downloadPDF()">📄 PDF</button>
+                            <button class="btn btn-outline" onclick="downloadCSV()">📥 CSV</button>
+                        </div>
+                    </div>
+                    <table><thead><tr>
+                        <th>ID</th><th>Descripción Mercancía</th><th>HS Code</th><th>Confianza</th>
+                    </tr></thead><tbody id="tableBody"></tbody></table>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            </section>
         </div>
-    </div>
+    </main>
 
-    <!-- ================================================================
-         SCRIPT — Lógica de UI y simulación mock del backend Python
-         ================================================================ -->
     <script>
-        // ================================================================
-        // DOM ELEMENTS
-        // ================================================================
+        // ========================================
+        // STATE
+        // ========================================
+        let classResults = [];
+        let currentPage = 1;
+        const PAGE_SIZE = 10;
+        let selectedFile = null;
+        let confChart = null, chapChart = null;
+
+        // ========================================
+        // DOM
+        // ========================================
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const dropText = document.getElementById('dropText');
         const startBtn = document.getElementById('startBtn');
-
-        const progressContainer = document.getElementById('progressContainer');
+        const progressSection = document.getElementById('progressSection');
         const progressBar = document.getElementById('progressBar');
-        const progressPercentage = document.getElementById('progressPercentage');
+        const progressPct = document.getElementById('progressPct');
         const progressStatus = document.getElementById('progressStatus');
         const progressDetail = document.getElementById('progressDetail');
-        const progressItem = document.getElementById('progressItem');
-
-        const resultsPanel = document.getElementById('resultsPanel');
-        const emptyState = document.getElementById('emptyState');
-        const kpiRow = document.getElementById('kpiRow');
-        const tableContainer = document.getElementById('tableContainer');
+        const resultsSection = document.getElementById('resultsSection');
         const tableBody = document.getElementById('tableBody');
 
-        let selectedFile = null;
-        let currentResults = []; // Para exportar después
-
-        // ================================================================
-        // DROPZONE EVENTS
-        // ================================================================
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
-            dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }, false);
-        });
-
-        ['dragenter', 'dragover'].forEach(ev => {
-            dropZone.addEventListener(ev, () => dropZone.classList.add('dragover'));
-        });
-
-        ['dragleave', 'drop'].forEach(ev => {
-            dropZone.addEventListener(ev, () => dropZone.classList.remove('dragover'));
-        });
-
-        dropZone.addEventListener('drop', e => {
-            handleFiles(e.dataTransfer.files);
-        });
-
-        fileInput.addEventListener('change', e => {
-            handleFiles(e.target.files);
-        });
+        // ========================================
+        // DROPZONE
+        // ========================================
+        ['dragenter','dragover','dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }));
+        ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('dragover')));
+        ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('dragover')));
+        dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+        fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
         function handleFiles(files) {
-            if (files.length === 0) return;
-            const file = files[0];
-            const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-
-            if (ext !== '.csv' && ext !== '.xlsx' && ext !== '.xls') {
-                alert('Este módulo acepta archivos CSV (.csv) y Excel (.xlsx, .xls)');
-                fileInput.value = '';
-                return;
-            }
-
-            selectedFile = file;
-            dropText.innerHTML = `
-                <span style="color:var(--accent); font-weight:600">${file.name}</span><br>
-                <span style="font-size:0.82rem;color:var(--text-muted)">${(file.size / 1024).toFixed(1)} KB — Listo para clasificar</span>
-            `;
+            if (!files.length) return;
+            const f = files[0];
+            const ext = f.name.substring(f.name.lastIndexOf('.')).toLowerCase();
+            if (!['.csv','.xlsx','.xls'].includes(ext)) { alert('Formato no soportado. Usa .csv, .xlsx o .xls'); return; }
+            selectedFile = f;
+            dropText.innerHTML = `<span style="color:var(--accent-light);font-weight:600">${f.name}</span><br><span style="font-size:0.8rem;color:var(--text-secondary)">${(f.size/1024).toFixed(1)} KB — Listo</span>`;
             startBtn.disabled = false;
-
-            // Reset previous results
-            resetResults();
         }
 
-        function resetResults() {
-            emptyState.style.display = 'flex';
-            kpiRow.style.display = 'none';
-            tableContainer.style.display = 'none';
-            tableBody.innerHTML = '';
-            resultsPanel.classList.remove('visible');
-            currentResults = [];
-        }
-
-        // ================================================================
-        // CSV PARSER — Lee el CSV desde el navegador (sin backend)
-        // ================================================================
-        function parseCSV(text) {
-            const lines = text.split('\n').filter(line => line.trim() !== '');
-            if (lines.length < 2) return [];
-
-            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-            const idCol = headers.indexOf('ID_PRODUCTO');
-            const descCol = headers.indexOf('DESCRIPCION_MERCANCIA');
-
-            if (idCol === -1 || descCol === -1) {
-                alert('El CSV debe contener las columnas: ID_PRODUCTO y DESCRIPCION_MERCANCIA');
-                return [];
-            }
-
-            const data = [];
-            for (let i = 1; i < lines.length; i++) {
-                // Simple CSV parser que maneja comillas
-                const row = parseCSVLine(lines[i]);
-                if (row.length > Math.max(idCol, descCol)) {
-                    data.push({
-                        id: row[idCol].trim(),
-                        descripcion: row[descCol].trim()
-                    });
-                }
-            }
-            return data;
-        }
-
-        function parseCSVLine(line) {
-            const result = [];
-            let current = '';
-            let inQuotes = false;
-
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                if (char === '"') {
-                    inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                    result.push(current);
-                    current = '';
-                } else {
-                    current += char;
-                }
-            }
-            result.push(current);
-            return result;
-        }
-
-        // ================================================================
-        // MOCK IA CLASSIFIER — Simula la respuesta de phi4:latest
-        // ================================================================
-        // En producción, esto se reemplazaría con una llamada fetch() al
-        // backend Python clasificador.py que se comunica con Ollama.
-        // Esta simulación es para demostración visual sin necesitar Ollama.
-
-        const HS_CODE_DB = {
-            'zapato': { hs: '6403990000', conf: 'alta', cap: 'Calzado' },
-            'cuero': { hs: '6403990000', conf: 'alta', cap: 'Calzado' },
-            'bota': { hs: '6403910000', conf: 'alta', cap: 'Calzado' },
-            'camisa': { hs: '6105100000', conf: 'alta', cap: 'Prendas' },
-            'camiseta': { hs: '6109100000', conf: 'alta', cap: 'Prendas' },
-            'algodón': { hs: '6109100000', conf: 'media', cap: 'Prendas' },
-            'pantalón': { hs: '6203420000', conf: 'alta', cap: 'Prendas' },
-            'aceite': { hs: '1509100000', conf: 'alta', cap: 'Aceites' },
-            'oliva': { hs: '1509100000', conf: 'alta', cap: 'Aceites' },
-            'laptop': { hs: '8471300000', conf: 'alta', cap: 'Tecnología' },
-            'computador': { hs: '8471300000', conf: 'alta', cap: 'Tecnología' },
-            'portátil': { hs: '8471300000', conf: 'alta', cap: 'Tecnología' },
-            'teléfono': { hs: '8517120000', conf: 'alta', cap: 'Tecnología' },
-            'celular': { hs: '8517120000', conf: 'alta', cap: 'Tecnología' },
-            'tablet': { hs: '8471300000', conf: 'media', cap: 'Tecnología' },
-            'freno': { hs: '8708302900', conf: 'alta', cap: 'Automotriz' },
-            'repuesto': { hs: '8708999000', conf: 'media', cap: 'Automotriz' },
-            'disco': { hs: '8708302900', conf: 'alta', cap: 'Automotriz' },
-            'automóvil': { hs: '8703230000', conf: 'media', cap: 'Automotriz' },
-            'fertilizante': { hs: '3105200000', conf: 'alta', cap: 'Agrícola' },
-            'npk': { hs: '3105200000', conf: 'alta', cap: 'Agrícola' },
-            'abono': { hs: '3105900000', conf: 'media', cap: 'Agrícola' },
-            'cable': { hs: '8544700000', conf: 'alta', cap: 'Telecomunicaciones' },
-            'fibra óptica': { hs: '8544700000', conf: 'alta', cap: 'Telecomunicaciones' },
-            'fibra': { hs: '8544700000', conf: 'media', cap: 'Telecomunicaciones' },
-            'juguete': { hs: '9503009900', conf: 'alta', cap: 'Juguetes' },
-            'puzzle': { hs: '9503006000', conf: 'alta', cap: 'Juguetes' },
-            'madera': { hs: '4421999000', conf: 'baja', cap: 'Madera' },
-            'arroz': { hs: '1006300000', conf: 'alta', cap: 'Alimentos' },
-            'café': { hs: '0901110000', conf: 'alta', cap: 'Alimentos' },
-            'azúcar': { hs: '1701130000', conf: 'alta', cap: 'Alimentos' },
-            'medicamento': { hs: '3004909000', conf: 'media', cap: 'Farmacéutico' },
-            'cosmético': { hs: '3304990000', conf: 'media', cap: 'Cosméticos' },
-            'perfume': { hs: '3303000000', conf: 'alta', cap: 'Cosméticos' },
-        };
-
-        function mockClassify(descripcion) {
-            const desc = descripcion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            let bestMatch = null;
-            let bestScore = 0;
-
-            // Buscar la mejor coincidencia por palabras clave
-            for (const [keyword, data] of Object.entries(HS_CODE_DB)) {
-                const normalizedKey = keyword.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                if (desc.includes(normalizedKey)) {
-                    const score = normalizedKey.length; // Más largo = más específico
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestMatch = data;
-                    }
-                }
-            }
-
-            if (bestMatch) {
-                return { hs_code: bestMatch.hs, confianza: bestMatch.conf };
-            }
-
-            // Si no hay coincidencia, generar un código genérico con confianza baja
-            const hash = Array.from(descripcion).reduce((a, c) => a + c.charCodeAt(0), 0);
-            const fakeCode = String(7000000000 + (hash % 3000000000)).padStart(10, '0');
-            return { hs_code: fakeCode, confianza: 'baja' };
-        }
-
-        // ================================================================
-        // START CLASSIFICATION — Proceso principal
-        // ================================================================
-        startBtn.addEventListener('click', async () => {
-            if (!startBtn.disabled && selectedFile) {
-                await startClassification();
-            }
-        });
-
-        async function startClassification() {
-            startBtn.disabled = true;
-            dropZone.style.display = 'none';
-            progressContainer.style.display = 'block';
-            resetResults();
-
-            // 1. Leer y parsear el archivo (CSV o Excel)
-            updateProgress(0, 100, 'Leyendo archivo...', 'Analizando estructura de datos...');
-            const productos = await parseFile(selectedFile);
-
-            if (productos.length === 0) {
-                alert('No se encontraron productos válidos en el CSV.');
-                resetUI();
-                return;
-            }
-
-            const total = productos.length;
-            const resultados = [];
-
-            // Fase 1: Preparación
-            updateProgress(0, total, 'Inicializando modelo IA...', 'Cargando phi4:latest en memoria...');
-            await sleep(800);
-
-            updateProgress(0, total, 'Analizando catálogo...', `${total} productos detectados en el CSV`);
-            await sleep(600);
-
-            // Fase 2: Clasificación producto por producto
-            for (let i = 0; i < productos.length; i++) {
-                const prod = productos[i];
-                updateProgress(
-                    i + 1, total,
-                    `Clasificando producto ${i + 1}/${total}`,
-                    `Inferencia IA en progreso...`
-                );
-
-                // Mostrar qué producto se está procesando
-                progressItem.style.display = 'block';
-                progressItem.innerHTML = `<strong>${prod.id}:</strong> ${truncate(prod.descripcion, 60)}`;
-
-                // --- CIERRE DE MOCK: LLAMADA REAL A LA API ---
-                let resultado;
-                try {
-                    const response = await fetch('http://localhost:8000/classify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ descripcion: prod.descripcion })
-                    });
-                    
-                    if (!response.ok) throw new Error('Error en API');
-                    
-                    const apiData = await response.json();
-                    resultado = {
-                        hs_code: apiData.hs_code,
-                        confianza: apiData.confidence_score
-                    };
-                } catch (error) {
-                    console.error('API Error:', error);
-                    // Fallback a mock solo si la API falla catastróficamente
-                    resultado = mockClassify(prod.descripcion);
-                }
-                resultados.push({
-                    ID_PRODUCTO: prod.id,
-                    DESCRIPCION_MERCANCIA: prod.descripcion,
-                    HS_CODE: resultado.hs_code,
-                    CONFIANZA: resultado.confianza
-                });
-            }
-
-            // Fase 3: Finalizando
-            updateProgress(total, total, 'Generando reporte...', 'Estructurando resultados para visualización');
-            progressItem.style.display = 'none';
-            await sleep(500);
-
-            // Guardar resultados globales para exportar
-            currentResults = resultados;
-
-            // Ocultar progreso y mostrar resultados
-            progressContainer.style.display = 'none';
-            dropZone.style.display = 'block';
-            startBtn.disabled = false;
-            startBtn.querySelector('svg').outerHTML = `
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="1 4 1 10 7 10"></polyline>
-                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                </svg>
-            `;
-            startBtn.childNodes[startBtn.childNodes.length - 1].textContent = ' Clasificar Otro Archivo';
-
-            renderResults(resultados);
-        }
-
-        function updateProgress(current, total, status, detail) {
-            const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-            progressBar.style.width = pct + '%';
-            progressPercentage.textContent = pct + '%';
-            progressStatus.textContent = status;
-            progressDetail.textContent = detail;
-        }
-
-        function resetUI() {
-            progressContainer.style.display = 'none';
-            dropZone.style.display = 'block';
-            startBtn.disabled = false;
-            fileInput.value = '';
-            selectedFile = null;
-            dropText.innerHTML = '<strong>Arrastra tu archivo aquí</strong><br><span style="font-size:0.85rem">o haz clic para explorar</span>';
-        }
-
-        // ================================================================
-        // FILE PARSING — Soporte CSV y XLSX (SheetJS)
-        // ================================================================
+        // ========================================
+        // FILE PARSING (CSV + Excel via SheetJS)
+        // ========================================
         async function parseFile(file) {
-            const fileName = file.name.toLowerCase();
-            
-            if (fileName.endsWith('.csv')) {
+            const name = file.name.toLowerCase();
+            if (name.endsWith('.csv')) {
                 const text = await file.text();
                 return parseCSV(text);
             } else {
-                // Excel (.xlsx, .xls)
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onload = (e) => {
+                    reader.onload = e => {
                         try {
-                            const data = new Uint8Array(e.target.result);
-                            const workbook = XLSX.read(data, { type: 'array' });
-                            const firstSheetName = workbook.SheetNames[0];
-                            const worksheet = workbook.Sheets[firstSheetName];
-                            const json = XLSX.utils.sheet_to_json(worksheet);
-                            
-                            // Mapear columnas (insensible a mayúsculas)
+                            const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+                            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                             const results = json.map(row => {
                                 const idKey = Object.keys(row).find(k => k.toUpperCase() === 'ID_PRODUCTO');
                                 const descKey = Object.keys(row).find(k => k.toUpperCase() === 'DESCRIPCION_MERCANCIA');
-                                
-                                if (idKey && descKey) {
-                                    return {
-                                        id: String(row[idKey]),
-                                        descripcion: String(row[descKey])
-                                    };
-                                }
+                                if (idKey && descKey) return { id: String(row[idKey]), descripcion: String(row[descKey]) };
                                 return null;
-                            }).filter(x => x !== null);
-                            
+                            }).filter(Boolean);
                             resolve(results);
-                        } catch (err) {
-                            reject(err);
-                        }
+                        } catch(e) { reject(e); }
                     };
                     reader.readAsArrayBuffer(file);
                 });
             }
         }
 
-        // ================================================================
-        // RENDER RESULTS — Inyecta la tabla y los KPIs
-        // ================================================================
-        function renderResults(data) {
-            tableBody.innerHTML = '';
-            let alta = 0, media = 0, baja = 0;
+        function parseCSV(text) {
+            const lines = text.split('\n').filter(l => l.trim());
+            if (lines.length < 2) return [];
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,''));
+            const idCol = headers.indexOf('ID_PRODUCTO');
+            const descCol = headers.indexOf('DESCRIPCION_MERCANCIA');
+            if (idCol === -1 || descCol === -1) return [];
+            return lines.slice(1).map(line => {
+                const cols = line.split(',').map(c => c.trim().replace(/"/g,''));
+                if (cols.length > Math.max(idCol, descCol)) return { id: cols[idCol], descripcion: cols[descCol] };
+                return null;
+            }).filter(Boolean);
+        }
 
-            data.forEach((row, idx) => {
-                const conf = row.CONFIANZA;
-                if (conf === 'alta') alta++;
-                else if (conf === 'media') media++;
-                else baja++; // baja + error
+        // ========================================
+        // CLASSIFICATION — BATCH API CALL (XHR PROGRESO REAL)
+        // ========================================
+        startBtn.addEventListener('click', () => {
+            if (startBtn.disabled || !selectedFile) return;
+            startBtn.disabled = true;
+            progressSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+            classResults = [];
+            updateProgress(0, 'Preparando el catálogo...', 'Iniciando subida masiva');
 
-                const tr = document.createElement('tr');
-                tr.style.animation = `fadeIn 0.3s ease ${idx * 0.05}s both`;
+            const form = new FormData();
+            form.append('file', selectedFile);
 
-                // Formatear HS Code con color en los primeros 4 dígitos (capítulo)
-                const hs = row.HS_CODE;
-                const hsFormatted = hs === 'ERROR'
-                    ? '<span style="color:var(--conf-error-text)">ERROR</span>'
-                    : `<span class="hs-prefix">${hs.substring(0, 4)}</span>.${hs.substring(4, 6)}.${hs.substring(6, 8)}.${hs.substring(8)}`;
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'http://localhost:8000/api/clasificar-masivo');
 
-                // Badge de confianza
-                const badgeClass = `badge-${conf === 'error' ? 'error' : conf}`;
-                const confLabel = conf.charAt(0).toUpperCase() + conf.slice(1);
-
-                tr.innerHTML = `
-                    <td style="font-family: 'Courier New', monospace; font-weight:600; color:var(--text-muted);">${row.ID_PRODUCTO}</td>
-                    <td class="desc-cell">${row.DESCRIPCION_MERCANCIA}</td>
-                    <td class="hs-code-cell">${hsFormatted}</td>
-                    <td>
-                        <span class="badge ${badgeClass}">
-                            <span class="dot"></span>
-                            ${confLabel}
-                        </span>
-                    </td>
-                `;
-                tableBody.appendChild(tr);
+            xhr.upload.addEventListener('progress', e => {
+                if (e.lengthComputable) {
+                    const pct = (e.loaded / e.total) * 30; // 30% del progreso asignado a la subida
+                    updateProgress(pct, `Subiendo datos: ${Math.round((e.loaded/1024))}KB / ${Math.round((e.total/1024))}KB`, 'Cargando archivo al backend para inferencia...');
+                }
             });
 
-            // KPIs
-            document.getElementById('kpiTotal').textContent = data.length;
+            xhr.addEventListener('readystatechange', () => {
+                // Al llegar el request al backend, la IA toma tiempo
+                if (xhr.readyState === 3 || xhr.readyState === 2) {
+                    updateProgress(80, 'Inferencia en curso (qwen2.5-coder RAG)...', 'Esta operación tomará tiempo dependiendo de la GPU.');
+                }
+            });
+
+            xhr.addEventListener('load', async () => {
+                try {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        classResults = JSON.parse(xhr.responseText);
+                        updateProgress(100, 'Clasificación masiva finalizada.', 'Generando visualizaciones corporativas...');
+                        await sleep(400);
+
+                        progressSection.style.display = 'none';
+                        startBtn.disabled = false;
+                        startBtn.textContent = '🔄 Clasificar Otro Archivo';
+                        document.getElementById('pdfBtn').style.display = '';
+                        renderResults();
+                    } else {
+                        throw new Error(`Error API (${xhr.status}): ${xhr.responseText}`);
+                    }
+                } catch(e) {
+                    handleError(e);
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                handleError(new Error('Error de conexión. Ejecuta "python api/main.py" y valida la GPU local.'));
+            });
+
+            xhr.send(form);
+        });
+
+        function handleError(err) {
+            const msg = err.message.includes('Failed to fetch') || err.message.includes('conexión')
+                ? 'Error de conexión crítica: Ejecuta "python api/main.py" para iniciar el servidor uvicorn.'
+                : err.message;
+            alert(msg);
+            resetUI();
+        }
+
+        function updateProgress(pct, status, detail) {
+            progressBar.style.width = Math.round(pct) + '%';
+            progressPct.textContent = Math.round(pct) + '%';
+            if (status) progressStatus.textContent = status;
+            if (detail) progressDetail.textContent = detail;
+        }
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+        function resetUI() { progressSection.style.display = 'none'; startBtn.disabled = false; selectedFile = null; fileInput.value = ''; }
+
+        // ========================================
+        // RENDER RESULTS
+        // ========================================
+        function renderResults() {
+            let alta=0, media=0, baja=0;
+            const chapters = {};
+            classResults.forEach(r => {
+                if (r.CONFIANZA === 'alta') alta++;
+                else if (r.CONFIANZA === 'media') media++;
+                else baja++;
+                if (r.HS_CODE !== 'ERROR') {
+                    const ch = r.HS_CODE.substring(0, 2);
+                    chapters[ch] = (chapters[ch] || 0) + 1;
+                }
+            });
+
+            document.getElementById('kpiTotal').textContent = classResults.length;
             document.getElementById('kpiAlta').textContent = alta;
             document.getElementById('kpiMedia').textContent = media;
             document.getElementById('kpiBaja').textContent = baja;
 
-            // Transiciones visuales
-            emptyState.style.display = 'none';
-            kpiRow.style.display = 'grid';
-            tableContainer.style.display = 'block';
-            resultsPanel.classList.add('visible');
+            renderCharts(alta, media, baja, chapters);
+            currentPage = 1;
+            renderTable();
+            resultsSection.style.display = 'block';
         }
 
-        // ================================================================
-        // EXPORT — Descargar resultados como CSV
-        // ================================================================
-        document.getElementById('downloadBtn').addEventListener('click', () => {
-            if (currentResults.length === 0) return;
+        // ========================================
+        // CHARTS
+        // ========================================
+        function renderCharts(alta, media, baja, chapters) {
+            const opts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}} };
 
-            const headers = ['ID_PRODUCTO', 'DESCRIPCION_MERCANCIA', 'HS_CODE', 'CONFIANZA'];
-            const csvRows = [headers.join(',')];
-
-            currentResults.forEach(row => {
-                const values = headers.map(h => {
-                    const val = row[h] || '';
-                    // Escapar comillas y envolver si contiene coma
-                    return val.includes(',') || val.includes('"')
-                        ? `"${val.replace(/"/g, '""')}"`
-                        : val;
-                });
-                csvRows.push(values.join(','));
+            if (confChart) confChart.destroy();
+            confChart = new Chart(document.getElementById('confDoughnut'), {
+                type:'doughnut',
+                data:{ labels:['Alta','Media','Baja'], datasets:[{data:[alta,media,baja], backgroundColor:['#22c55e','#f59e0b','#ef4444'], borderWidth:0, borderRadius:4}] },
+                options:{...opts, cutout:'65%'}
             });
 
-            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `clasificacion_arancelaria_${new Date().toISOString().slice(0, 10)}.csv`;
-            link.click();
-            URL.revokeObjectURL(url);
-        });
-
-        // ================================================================
-        // UTILITIES
-        // ================================================================
-        function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
+            const sorted = Object.entries(chapters).sort((a,b) => b[1]-a[1]).slice(0, 8);
+            if (chapChart) chapChart.destroy();
+            chapChart = new Chart(document.getElementById('chapterBar'), {
+                type:'bar',
+                data:{ labels:sorted.map(([ch]) => `Cap. ${ch}`), datasets:[{label:'Productos', data:sorted.map(([,c]) => c), backgroundColor:'#3b82f6', borderRadius:6, barPercentage:0.5}] },
+                options:{...opts, plugins:{...opts.plugins, legend:{display:false}}, scales:{x:{ticks:{color:'#94a3b8'},grid:{display:false}},y:{ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.3)'}}}}
+            });
         }
 
-        function truncate(str, max) {
-            return str.length > max ? str.substring(0, max) + '...' : str;
+        // ========================================
+        // TABLE + PAGINATION
+        // ========================================
+        function renderTable() {
+            const start = (currentPage-1) * PAGE_SIZE;
+            const page = classResults.slice(start, start+PAGE_SIZE);
+            tableBody.innerHTML = '';
+            page.forEach(r => {
+                const hs = r.HS_CODE;
+                const hsFormatted = hs === 'ERROR' ? '<span style="color:var(--conf-baja)">ERROR</span>'
+                    : `<span class="hs-prefix">${hs.substring(0,4)}</span>.${hs.substring(4,6)}.${hs.substring(6,8)}.${hs.substring(8)}`;
+                const conf = r.CONFIANZA;
+                const badgeClass = conf === 'alta' ? 'badge-alta' : conf === 'media' ? 'badge-media' : 'badge-baja';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="mono">${r.ID_PRODUCTO}</td>
+                    <td class="desc" title="${r.DESCRIPCION_MERCANCIA}">${r.DESCRIPCION_MERCANCIA}</td>
+                    <td style="font-family:'Courier New',monospace">${hsFormatted}</td>
+                    <td><span class="badge ${badgeClass}"><span class="dot"></span>${conf.charAt(0).toUpperCase()+conf.slice(1)}</span></td>
+                `;
+                tableBody.appendChild(tr);
+            });
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const total = Math.ceil(classResults.length / PAGE_SIZE);
+            const container = document.getElementById('pagination');
+            container.innerHTML = '';
+            if (total <= 1) return;
+            for (let i=1; i<=total; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'page-btn' + (i===currentPage?' active':'');
+                btn.textContent = i;
+                btn.onclick = () => { currentPage=i; renderTable(); };
+                container.appendChild(btn);
+            }
+        }
+
+        // ========================================
+        // EXPORTS
+        // ========================================
+        async function downloadPDF() {
+            if (!classResults.length) return;
+            try {
+                const body = {
+                    titulo: "Reporte de Clasificación Arancelaria — DIAN Auditor B2B",
+                    tipo: "clasificacion",
+                    items: classResults.map(r => ({
+                        id: r.ID_PRODUCTO, descripcion: r.DESCRIPCION_MERCANCIA,
+                        hs_code: r.HS_CODE, confianza: r.CONFIANZA, razonamiento: 'Clasificación IA phi4 con RAG'
+                    }))
+                };
+                const res = await fetch('http://localhost:8000/api/generar-reporte-pdf', {
+                    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+                });
+                if (!res.ok) throw new Error('Error generando PDF');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'Clasificacion_Arancelaria.pdf'; a.click();
+                URL.revokeObjectURL(url);
+            } catch(e) { alert('Error: ' + e.message); }
+        }
+
+        function downloadCSV() {
+            if (!classResults.length) return;
+            const headers = ['ID_PRODUCTO','DESCRIPCION_MERCANCIA','HS_CODE','CONFIANZA'];
+            const rows = [headers.join(',')];
+            classResults.forEach(r => {
+                rows.push(headers.map(h => { const v=r[h]||''; return v.includes(',')?`"${v}"`:v; }).join(','));
+            });
+            const blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `clasificacion_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+            URL.revokeObjectURL(url);
         }
     </script>
-
 </body>
-
 </html>

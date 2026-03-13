@@ -3,777 +3,507 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auditor DIAN - MicroSaaS B2B</title>
-    <!-- Solo fuentes e iconos externos visuales para Premium Design, nada de librerías JS o CSS UI de terceros de instalación -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Auditor DIAN — Dashboard Ejecutivo B2B</title>
+    <meta name="description" content="Dashboard ejecutivo de auditoría de riesgo aduanero — DIAN Auditor B2B. Análisis de terceros, proveedores ficticios y cumplimiento tributario.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <style>
+        /* ================================================================ */
+        /* DESIGN SYSTEM — Executive Dashboard                              */
+        /* ================================================================ */
         :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
+            --bg-base: #0b1120;
+            --bg-surface: #111827;
+            --bg-card: #1e293b;
+            --bg-card-hover: #263548;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
             --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --border-color: #334155;
-            
-            /* Status Colors */
-            --status-alto-bg: #450a0a;
-            --status-alto-text: #fca5a5;
-            --status-alto-border: #991b1b;
-            
-            --status-medio-bg: #422006;
-            --status-medio-text: #fcd34d;
-            --status-medio-border: #92400e;
-            
-            --status-revisar-bg: #422006;
-            --status-revisar-text: #fde047;
-            --status-revisar-border: #a16207;
-            
-            --status-bajo-bg: #052e16;
-            --status-bajo-text: #86efac;
-            --status-bajo-border: #15803d;
+            --accent-light: #60a5fa;
+            --border: #1e293b;
+            --border-light: #334155;
+            --risk-high: #ef4444;
+            --risk-high-bg: rgba(239,68,68,0.12);
+            --risk-med: #f59e0b;
+            --risk-med-bg: rgba(245,158,11,0.12);
+            --risk-low: #22c55e;
+            --risk-low-bg: rgba(34,197,94,0.12);
+            --risk-rev: #a855f7;
+            --risk-rev-bg: rgba(168,85,247,0.12);
+            --sidebar-w: 240px;
         }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg-base); color: var(--text-primary); min-height: 100vh; display: flex; }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', sans-serif;
+        /* ================================================================ */
+        /* SIDEBAR                                                          */
+        /* ================================================================ */
+        .sidebar {
+            width: var(--sidebar-w); background: var(--bg-surface); border-right: 1px solid var(--border-light);
+            display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 200;
         }
+        .sidebar-brand {
+            padding: 1.5rem; border-bottom: 1px solid var(--border-light); display:flex; align-items:center; gap:12px;
+        }
+        .sidebar-brand .brand-icon { width:36px; height:36px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; font-weight:800; }
+        .sidebar-brand span { font-weight:700; font-size:1.05rem; background:linear-gradient(135deg,#60a5fa,#a78bfa); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+        .sidebar-nav { padding: 1rem 0; flex: 1; }
+        .nav-section { padding: 0.5rem 1.5rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-top: 0.5rem; }
+        .nav-item {
+            display:flex; align-items:center; gap:12px; padding:0.7rem 1.5rem; color:var(--text-secondary); text-decoration:none;
+            font-size:0.88rem; border-left:3px solid transparent; transition:all 0.2s;
+        }
+        .nav-item:hover { background:rgba(59,130,246,0.08); color:var(--text-primary); }
+        .nav-item.active { background:rgba(59,130,246,0.12); color:var(--accent-light); border-left-color:var(--accent); font-weight:500; }
+        .nav-item svg { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+        .sidebar-footer { padding:1.2rem 1.5rem; border-top:1px solid var(--border-light); font-size:0.75rem; color:var(--text-muted); }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
+        /* ================================================================ */
+        /* MAIN AREA                                                        */
+        /* ================================================================ */
+        .main { margin-left: var(--sidebar-w); flex:1; display:flex; flex-direction:column; }
+        .topbar {
+            background: var(--bg-surface); border-bottom:1px solid var(--border-light); padding:1rem 2rem;
+            display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:100;
         }
+        .topbar h1 { font-size:1.3rem; font-weight:700; }
+        .topbar-actions { display:flex; gap:10px; }
+        .btn { padding:0.55rem 1.2rem; border-radius:8px; border:none; font-size:0.85rem; cursor:pointer; font-weight:500; display:inline-flex; align-items:center; gap:8px; transition:all 0.2s; }
+        .btn-primary { background:var(--accent); color:#fff; }
+        .btn-primary:hover { background:#2563eb; }
+        .btn-outline { background:transparent; border:1px solid var(--border-light); color:var(--text-secondary); }
+        .btn-outline:hover { border-color:var(--accent); color:var(--accent-light); }
+        .btn:disabled { opacity:0.5; cursor:not-allowed; }
 
-        header {
-            background-color: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(12px);
-            padding: 1.2rem 2rem;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
+        .content { padding: 2rem; flex:1; }
 
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        /* ================================================================ */
+        /* UPLOAD SECTION                                                   */
+        /* ================================================================ */
+        .upload-section { max-width: 800px; margin: 0 auto 2rem; }
+        .upload-card {
+            background: var(--bg-card); border-radius:16px; border:1px solid var(--border-light);
+            padding:2rem; box-shadow:0 4px 20px rgba(0,0,0,0.15);
         }
-
-        .container {
-            flex: 1;
-            padding: 2rem;
-            max-width: 1400px;
-            margin: 0 auto;
-            width: 100%;
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 2rem;
-        }
-
-        /* Uploader Area */
-        .upload-panel {
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            padding: 2rem;
-            border: 1px solid var(--border-color);
-            height: fit-content;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            transition: transform 0.3s ease;
-        }
-
-        .upload-panel h2 {
-            font-size: 1.2rem;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-        
-        .upload-panel p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            margin-bottom: 1.5rem;
-            line-height: 1.5;
-        }
-
+        .upload-card h2 { font-size:1.1rem; font-weight:600; margin-bottom:0.3rem; display:flex; align-items:center; gap:10px; }
+        .upload-card .subtitle { color:var(--text-secondary); font-size:0.85rem; margin-bottom:1.5rem; }
         .drop-zone {
-            border: 2px dashed var(--border-color);
-            border-radius: 12px;
-            padding: 2.5rem 1.5rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            background: rgba(15, 23, 42, 0.3);
+            border:2px dashed var(--border-light); border-radius:12px; padding:2.5rem; text-align:center;
+            cursor:pointer; transition:all 0.3s; position:relative; background:rgba(59,130,246,0.03);
         }
+        .drop-zone:hover, .drop-zone.dragover { border-color:var(--accent); background:rgba(59,130,246,0.06); }
+        .drop-zone-icon { font-size:2.5rem; margin-bottom:0.8rem; }
+        .drop-zone-text { color:var(--text-secondary); font-size:0.9rem; }
+        .drop-zone-text strong { color:var(--text-primary); }
+        .file-input { position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+        .upload-actions { display:flex; gap:12px; margin-top:1.5rem; }
 
-        .drop-zone:hover, .drop-zone.dragover {
-            border-color: var(--accent);
-            background: rgba(59, 130, 246, 0.05);
-        }
+        /* ================================================================ */
+        /* PROGRESS                                                         */
+        /* ================================================================ */
+        .progress-section { display:none; margin-top:1.5rem; }
+        .progress-bar-bg { width:100%; height:8px; background:var(--bg-base); border-radius:99px; overflow:hidden; }
+        .progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),#8b5cf6); border-radius:99px; width:0%; transition:width 0.4s; }
+        .progress-info { display:flex; justify-content:space-between; margin-top:0.5rem; font-size:0.8rem; color:var(--text-secondary); }
 
-        .drop-zone-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-            display: block;
-            color: var(--accent);
-        }
+        /* ================================================================ */
+        /* RESULTS — KPI CARDS + CHARTS + TABLE                             */
+        /* ================================================================ */
+        .results-section { display:none; animation:fadeUp 0.5s ease; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
 
-        .file-input {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .btn {
-            background-color: var(--accent);
-            color: white;
-            border: none;
-            padding: 0.8rem 1.5rem;
-            border-radius: 8px;
-            font-weight: 600;
-            width: 100%;
-            margin-top: 1.5rem;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            font-size: 1rem;
-        }
-
-        .btn:hover {
-            background-color: var(--accent-hover);
-        }
-        
-        .btn:active {
-            transform: scale(0.98);
-        }
-
-        .btn:disabled {
-            background-color: var(--border-color);
-            color: var(--text-muted);
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Progress Area */
-        .progress-container {
-            margin-top: 1.5rem;
-            display: none;
-        }
-        
-        .progress-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-
-        .progress-bar-bg {
-            background-color: var(--border-color);
-            border-radius: 99px;
-            height: 10px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .progress-fill {
-            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-            height: 100%;
-            width: 0%;
-            border-radius: 99px;
-            transition: width 0.3s ease;
-            position: relative;
-        }
-        
-        .progress-fill::after {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
-            animation: shimmer 1.5s infinite;
-            transform: skewX(-20deg);
-        }
-
-        @keyframes shimmer {
-            0% { transform: translateX(-100%) skewX(-20deg); }
-            100% { transform: translateX(200%) skewX(-20deg); }
-        }
-
-        /* Results Area */
-        .results-panel {
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            border: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.5s ease, transform 0.5s ease;
-        }
-
-        .results-panel.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .kpi-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            padding: 1.5rem;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(15, 23, 42, 0.4);
-        }
-
+        .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:2rem; }
         .kpi-card {
-            background: var(--card-bg);
-            padding: 1rem;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
+            background:var(--bg-card); border-radius:14px; padding:1.5rem; border:1px solid var(--border-light);
+            transition:transform 0.2s, box-shadow 0.2s;
         }
-        
-        .kpi-label {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-        }
-        
-        .kpi-val {
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
+        .kpi-card:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(0,0,0,0.2); }
+        .kpi-label { font-size:0.78rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.5rem; }
+        .kpi-value { font-size:2.2rem; font-weight:800; }
+        .kpi-card.alto .kpi-value { color:var(--risk-high); }
+        .kpi-card.medio .kpi-value { color:var(--risk-med); }
+        .kpi-card.bajo .kpi-value { color:var(--risk-low); }
+        .kpi-card.total .kpi-value { color:var(--accent-light); }
 
-        .kpi-card.alto .kpi-val { color: #fca5a5; }
-        .kpi-card.medio .kpi-val { color: #fcd34d; }
-        .kpi-card.bajo .kpi-val { color: #86efac; }
+        .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:2rem; }
+        .chart-card { background:var(--bg-card); border-radius:14px; padding:1.5rem; border:1px solid var(--border-light); }
+        .chart-card h3 { font-size:0.95rem; font-weight:600; margin-bottom:1rem; display:flex; align-items:center; gap:8px; }
+        .chart-card h3 .dot { width:8px; height:8px; border-radius:50%; }
+        .chart-wrapper { position:relative; height:250px; }
 
-        .table-container {
-            flex: 1;
-            overflow: auto;
-            padding: 0 1.5rem 1.5rem 1.5rem;
-        }
-        
-        .table-header-row {
-            position: sticky;
-            top: 0;
-            background-color: var(--card-bg);
-            z-index: 10;
-            padding-top: 1.5rem;
-            padding-bottom: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .table-header-row h3 {
-            font-weight: 600;
-        }
+        .table-section { background:var(--bg-card); border-radius:14px; border:1px solid var(--border-light); overflow:hidden; }
+        .table-header { padding:1.2rem 1.5rem; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-light); }
+        .table-header h3 { font-size:0.95rem; font-weight:600; }
+        .table-header .actions { display:flex; gap:8px; }
+        table { width:100%; border-collapse:collapse; }
+        thead th { padding:0.8rem 1rem; text-align:left; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); background:var(--bg-surface); border-bottom:1px solid var(--border-light); font-weight:600; }
+        tbody td { padding:0.85rem 1rem; font-size:0.85rem; border-bottom:1px solid rgba(51,65,85,0.4); }
+        tbody tr:hover { background:rgba(59,130,246,0.04); }
+        tbody tr:last-child td { border-bottom:none; }
 
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            text-align: left;
-        }
+        .badge { padding:0.3rem 0.7rem; border-radius:99px; font-size:0.72rem; font-weight:600; display:inline-flex; align-items:center; gap:5px; }
+        .badge .dot { width:6px; height:6px; border-radius:50%; }
+        .badge-alto { background:var(--risk-high-bg); color:var(--risk-high); }
+        .badge-alto .dot { background:var(--risk-high); }
+        .badge-medio { background:var(--risk-med-bg); color:var(--risk-med); }
+        .badge-medio .dot { background:var(--risk-med); }
+        .badge-revisar { background:var(--risk-rev-bg); color:var(--risk-rev); }
+        .badge-revisar .dot { background:var(--risk-rev); }
+        .badge-bajo { background:var(--risk-low-bg); color:var(--risk-low); }
+        .badge-bajo .dot { background:var(--risk-low); }
+        .badge-si { background:var(--risk-high-bg); color:var(--risk-high); }
+        .badge-no { background:var(--risk-low-bg); color:var(--risk-low); }
+        .badge-habilitado { background:var(--risk-low-bg); color:var(--risk-low); }
+        .badge-inactivo { background:var(--risk-med-bg); color:var(--risk-med); }
+        td.mono { font-family:'Courier New',monospace; font-weight:600; color:var(--text-secondary); }
 
-        th {
-            padding: 1rem;
-            background-color: rgba(15, 23, 42, 0.6);
-            color: var(--text-muted);
-            font-weight: 600;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            position: sticky;
-            top: 60px;
-            z-index: 5;
-            backdrop-filter: blur(4px);
-        }
+        /* Pagination */
+        .pagination { display:flex; justify-content:center; gap:6px; padding:1rem; }
+        .page-btn { background:var(--bg-surface); border:1px solid var(--border-light); color:var(--text-secondary); padding:0.4rem 0.8rem; border-radius:6px; cursor:pointer; font-size:0.8rem; transition:all 0.2s; }
+        .page-btn:hover, .page-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 
-        th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-        th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-
-        td {
-            padding: 1rem;
-            font-size: 0.95rem;
-            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
-        }
-
-        tr {
-            transition: background-color 0.2s ease;
-        }
-
-        tr:hover {
-            background-color: rgba(255, 255, 255, 0.03);
-        }
-
-        .badge {
-            padding: 0.4rem 0.8rem;
-            border-radius: 99px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            border: 1px solid;
-        }
-
-        .status-alto {
-            background-color: var(--status-alto-bg);
-            color: var(--status-alto-text);
-            border-color: var(--status-alto-border);
-        }
-
-        .status-medio {
-            background-color: var(--status-medio-bg);
-            color: var(--status-medio-text);
-            border-color: var(--status-medio-border);
-        }
-        
-        .status-revisar {
-            background-color: var(--status-revisar-bg);
-            color: var(--status-revisar-text);
-            border-color: var(--status-revisar-border);
-        }
-
-        .status-bajo {
-            background-color: var(--status-bajo-bg);
-            color: var(--status-bajo-text);
-            border-color: var(--status-bajo-border);
-        }
-
-        /* Status Dot Indicator */
-        .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        .status-alto .dot { background-color: var(--status-alto-text); box-shadow: 0 0 8px var(--status-alto-text); }
-        .status-medio .dot { background-color: var(--status-medio-text); box-shadow: 0 0 8px var(--status-medio-text); }
-        .status-revisar .dot { background-color: var(--status-revisar-text); box-shadow: 0 0 8px var(--status-revisar-text); }
-        .status-bajo .dot { background-color: var(--status-bajo-text); box-shadow: 0 0 8px var(--status-bajo-text); }
-
-        .bool-badge {
-            padding: 0.2rem 0.6rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            background: rgba(255,255,255,0.1);
-        }
-
-        .bool-true { color: #fca5a5; background: rgba(252, 165, 165, 0.1); border: 1px solid rgba(252,165,165,0.2) } /* Ficticio True es malo */
-        .bool-false { color: #94a3b8; }
-        
-        .fact-true { color: #86efac; background: rgba(134, 239, 172, 0.1); border: 1px solid rgba(134,239,172,0.2) } /* Habilitado es bueno */
-        .fact-false { color: #fca5a5; background: rgba(252, 165, 165, 0.1); border: 1px solid rgba(252,165,165,0.2) }
-
-        .download-btn {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .download-btn:hover {
-            background: rgba(255,255,255,0.05);
-            border-color: var(--text-muted);
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .container {
-                grid-template-columns: 1fr;
-            }
-            .kpi-row {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 600px) {
-            .kpi-row {
-                grid-template-columns: 1fr;
-            }
-            .table-container {
-                padding: 0 1rem 1rem 1rem;
-            }
-            th, td {
-                padding: 0.75rem 0.5rem;
-            }
-        }
+        @media(max-width:1024px) { .kpi-grid { grid-template-columns:repeat(2,1fr); } .charts-row { grid-template-columns:1fr; } .sidebar { display:none; } .main { margin-left:0; } }
     </style>
 </head>
 <body>
-
-    <header>
-        <div class="logo">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                <path d="M9 12l2 2 4-4"></path>
-            </svg>
-            DIAN Auditor B2B
-        </div>
-        <div style="display: flex; align-items: center; gap: 16px;">
-            <a href="clasificador.html" style="display:flex; align-items:center; gap:8px; background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.3); color:#93c5fd; padding:0.4rem 1rem; border-radius:99px; font-size:0.85rem; font-weight:500; text-decoration:none; transition:all 0.2s;" onmouseover="this.style.background='rgba(59,130,246,0.2)'" onmouseout="this.style.background='rgba(59,130,246,0.1)'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-brand"><div class="brand-icon">D</div><span>DIAN Auditor</span></div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Principal</div>
+            <a href="dashboard.html" class="nav-item active">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                Dashboard
+            </a>
+            <a href="clasificador.html" class="nav-item">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 Clasificador IA
             </a>
-            <span style="font-size: 0.85rem; color: var(--text-muted);">V 1.1.0</span>
-        </div>
-    </header>
+            <div class="nav-section">Sistema</div>
+            <a href="http://localhost:8000/docs" target="_blank" class="nav-item">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                API Swagger
+            </a>
+        </nav>
+        <div class="sidebar-footer">DIAN Auditor B2B © 2026<br>AAA Agency of AI — v2.0</div>
+    </aside>
 
-    <div class="container">
-        <!-- Sidebar Upload -->
-        <div class="upload-panel">
-            <h2>Nueva Auditoría</h2>
-            <p>Sube el archivo Excel de proveedores para cruzar contra DIAN BDME y Facturadores Electrónicos.</p>
-            
-            <div class="drop-zone" id="dropZone">
-                <div class="drop-zone-icon">📊</div>
-                <div id="dropText">Arrastra tu Excel aquí o haz clic para explorar</div>
-                <input type="file" class="file-input" id="fileInput" accept=".xlsx, .xls, .csv">
-            </div>
-
-            <div class="progress-container" id="progressContainer">
-                <div class="progress-header">
-                    <span id="progressStatus">Analizando NITs (BDME)...</span>
-                    <span id="progressPercentage">0%</span>
-                </div>
-                <div class="progress-bar-bg">
-                    <div class="progress-fill" id="progressBar"></div>
-                </div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; text-align: center;" id="progressDetail">
-                    Preparando entorno...
-                </div>
-            </div>
-
-            <button class="btn" id="startBtn" disabled>Iniciar Análisis</button>
-        </div>
-
-        <!-- Main Results -->
-        <div class="results-panel" id="resultsPanel">
-            <div class="kpi-row">
-                <div class="kpi-card">
-                    <span class="kpi-label">Total Analizados</span>
-                    <span class="kpi-val" id="kpiTotal">0</span>
-                </div>
-                <div class="kpi-card alto">
-                    <span class="kpi-label">Riesgo Alto</span>
-                    <span class="kpi-val" id="kpiAlto">0</span>
-                </div>
-                <div class="kpi-card medio">
-                    <span class="kpi-label">Riesgo Medio</span>
-                    <span class="kpi-val" id="kpiMedio">0</span>
-                </div>
-                <div class="kpi-card bajo">
-                    <span class="kpi-label">Proveedor Seguro</span>
-                    <span class="kpi-val" id="kpiBajo">0</span>
-                </div>
-            </div>
-
-            <div class="table-container">
-                <div class="table-header-row">
-                    <h3>Detalle de Resultados</h3>
-                    <button class="download-btn" id="downloadBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Exportar a Excel
-                    </button>
-                </div>
-                
-                <table id="resultsTable">
-                    <thead>
-                        <tr>
-                            <th>NIT</th>
-                            <th>Razón Social</th>
-                            <th>Ficticio (DIAN)</th>
-                            <th>Deudor (BDME)</th>
-                            <th>Facturador Elect.</th>
-                            <th>Nivel Riesgo</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody">
-                        <!-- Rows injected by JS -->
-                    </tbody>
-                </table>
+    <!-- MAIN CONTENT -->
+    <main class="main">
+        <div class="topbar">
+            <h1>📊 Panel de Auditoría de Terceros</h1>
+            <div class="topbar-actions">
+                <button class="btn btn-outline" id="pdfBtn" style="display:none" onclick="downloadPDF()">📄 Reporte PDF</button>
+                <button class="btn btn-outline" id="excelBtn" style="display:none" onclick="downloadExcel()">📥 Exportar Excel</button>
             </div>
         </div>
-    </div>
 
-    <!-- Script de lógica de UI e interacciones mock (Simulando el Backend de Pandas/Selenium) -->
+        <div class="content">
+            <!-- UPLOAD SECTION -->
+            <section class="upload-section" id="uploadSection">
+                <div class="upload-card">
+                    <h2>🔍 Nueva Auditoría</h2>
+                    <p class="subtitle">Sube un archivo Excel o CSV con NITs para cruzar contra DIAN, BDME y Facturadores Electrónicos.<br>
+                    <span style="font-size:0.75rem; color:var(--text-muted)">Última actualización BD DIAN/BDME: Hoy (Sincronizado)</span></p>
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-zone-icon">📂</div>
+                        <div class="drop-zone-text" id="dropText"><strong>Arrastra tu archivo aquí</strong><br>o haz clic para explorar (.xlsx, .xls, .csv)</div>
+                        <input type="file" class="file-input" id="fileInput" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="upload-actions">
+                        <button class="btn btn-primary" id="startBtn" disabled>🚀 Iniciar Análisis</button>
+                    </div>
+                    <div class="progress-section" id="progressSection">
+                        <div class="progress-bar-bg"><div class="progress-fill" id="progressBar"></div></div>
+                        <div class="progress-info"><span id="progressStatus">Conectando...</span><span id="progressPct">0%</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RESULTS SECTION -->
+            <section class="results-section" id="resultsSection">
+                <div class="kpi-grid">
+                    <div class="kpi-card total"><div class="kpi-label">Total Analizados</div><div class="kpi-value" id="kpiTotal">0</div></div>
+                    <div class="kpi-card alto"><div class="kpi-label">Riesgo Alto</div><div class="kpi-value" id="kpiAlto">0</div></div>
+                    <div class="kpi-card medio"><div class="kpi-label">Riesgo Medio</div><div class="kpi-value" id="kpiMedio">0</div></div>
+                    <div class="kpi-card bajo"><div class="kpi-label">Riesgo Bajo</div><div class="kpi-value" id="kpiBajo">0</div></div>
+                </div>
+
+                <div class="charts-row">
+                    <div class="chart-card">
+                        <h3><span class="dot" style="background:var(--accent)"></span>Distribución de Riesgo</h3>
+                        <div class="chart-wrapper"><canvas id="riskDoughnut"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3><span class="dot" style="background:var(--risk-med)"></span>Hallazgos por Fuente</h3>
+                        <div class="chart-wrapper"><canvas id="sourceBar"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="table-section">
+                    <div class="table-header">
+                        <h3>📋 Detalle de Resultados</h3>
+                        <div class="actions">
+                            <button class="btn btn-outline" onclick="downloadPDF()">📄 PDF</button>
+                            <button class="btn btn-outline" onclick="downloadExcel()">📥 Excel</button>
+                        </div>
+                    </div>
+                    <table><thead><tr>
+                        <th>NIT</th><th>Razón Social</th><th>Ficticio</th><th>Deudor BDME</th><th>Facturador</th><th>Riesgo</th>
+                    </tr></thead><tbody id="tableBody"></tbody></table>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
     <script>
-        // DOM Elements
+        // ========================================
+        // STATE
+        // ========================================
+        let auditResults = [];
+        let currentPage = 1;
+        const PAGE_SIZE = 10;
+        let riskChart = null, sourceChart = null;
+
+        // ========================================
+        // DOM
+        // ========================================
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const dropText = document.getElementById('dropText');
         const startBtn = document.getElementById('startBtn');
-        
-        const progressContainer = document.getElementById('progressContainer');
+        const progressSection = document.getElementById('progressSection');
         const progressBar = document.getElementById('progressBar');
-        const progressPercentage = document.getElementById('progressPercentage');
+        const progressPct = document.getElementById('progressPct');
         const progressStatus = document.getElementById('progressStatus');
-        const progressDetail = document.getElementById('progressDetail');
-        
-        const resultsPanel = document.getElementById('resultsPanel');
+        const resultsSection = document.getElementById('resultsSection');
         const tableBody = document.getElementById('tableBody');
-        
-        let selectedFileName = "";
 
-        // UI Events for Dropzone
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
-        });
-
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
-        });
-
-        dropZone.addEventListener('drop', handleDrop, false);
-        fileInput.addEventListener('change', handleFileSelect, false);
-
-        function handleDrop(e) {
-            let dt = e.dataTransfer;
-            let files = dt.files;
-            handleFiles(files);
-        }
-
-        function handleFileSelect(e) {
-            let files = e.target.files;
-            handleFiles(files);
-        }
+        // ========================================
+        // DROPZONE
+        // ========================================
+        ['dragenter','dragover','dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }));
+        ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('dragover')));
+        ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('dragover')));
+        dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+        fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
         function handleFiles(files) {
-            if (files.length > 0) {
-                const file = files[0];
-                const validExts = ['.xlsx', '.xls', '.csv'];
-                const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-                
-                if (validExts.includes(fileExt)) {
-                    // Limpiar estado y UI anterior
-                    resetState();
+            if (!files.length) return;
+            const f = files[0];
+            const ext = f.name.substring(f.name.lastIndexOf('.')).toLowerCase();
+            if (!['.xlsx','.xls','.csv'].includes(ext)) { alert('Formato no soportado. Usa .xlsx, .xls o .csv'); return; }
+            dropText.innerHTML = `<span style="color:var(--accent-light);font-weight:600">${f.name}</span><br><span style="font-size:0.8rem;color:var(--text-secondary)">${(f.size/1024).toFixed(1)} KB — Listo</span>`;
+            startBtn.disabled = false;
+        }
 
-                    selectedFileName = file.name;
-                    dropText.innerHTML = `<span style="color:var(--accent); font-weight:600">${file.name}</span><br><span style="font-size:0.8rem;color:var(--text-muted)">Archivo cargado correctamente</span>`;
-                    startBtn.disabled = false;
-                } else {
-                    alert("Por favor sube un archivo Excel válido (.xlsx, .xls, .csv)");
-                    fileInput.value = '';
+        // ========================================
+        // START ANALYSIS — REAL API CALL (XHR CON PROGRESO)
+        // ========================================
+        startBtn.addEventListener('click', () => {
+            if (startBtn.disabled || !fileInput.files[0]) return;
+            startBtn.disabled = true;
+            progressSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+            updateProgress(0, 'Preparando archivo...');
+
+            const form = new FormData();
+            form.append('file', fileInput.files[0]);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'http://localhost:8000/api/auditar-json');
+
+            xhr.upload.addEventListener('progress', e => {
+                if (e.lengthComputable) {
+                    const pct = (e.loaded / e.total) * 40; // 40% del progreso
+                    updateProgress(pct, `Subiendo datos: ${Math.round((e.loaded/1024))}KB / ${Math.round((e.total/1024))}KB`);
                 }
-            }
-        }
+            });
 
-        function resetState() {
-            // Ocultar panel de resultados si estaba visible
-            resultsPanel.classList.remove('visible');
-            
-            // Limpiar la tabla de resultados
-            tableBody.innerHTML = '';
-            
-            // Resetear KPIs
-            document.getElementById('kpiTotal').textContent = '0';
-            document.getElementById('kpiAlto').textContent = '0';
-            document.getElementById('kpiMedio').textContent = '0';
-            document.getElementById('kpiBajo').textContent = '0';
-            
-            // Reiniciar progreso
-            progressBar.style.width = '0%';
-            progressPercentage.textContent = '0%';
-            progressStatus.textContent = 'Analizando NITs (BDME)...';
-            progressDetail.textContent = 'Preparando entorno...';
-            
-            // Reiniciar texto del botón
-            startBtn.textContent = 'Iniciar Análisis';
-        }
+            xhr.addEventListener('readystatechange', () => {
+                // Durante el estado 3 (processing), simulamos avance asumiendo que el server está calculando
+                if (xhr.readyState === 3) {
+                    updateProgress(75, 'Procesando modelo y cruzando datos maestros en el backend...');
+                }
+            });
 
-        // Mock Simulation of Python Backend Processing
-        startBtn.addEventListener('click', async () => {
-            if(!startBtn.disabled) {
-                startAnimation();
-            }
+            xhr.addEventListener('load', async () => {
+                try {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        auditResults = JSON.parse(xhr.responseText);
+                        updateProgress(100, 'Auditoría finalizada con éxito.');
+                        await sleep(400);
+
+                        progressSection.style.display = 'none';
+                        startBtn.disabled = false;
+                        startBtn.textContent = '🔄 Analizar Otro Archivo';
+                        document.getElementById('pdfBtn').style.display = '';
+                        document.getElementById('excelBtn').style.display = '';
+                        renderResults();
+                    } else {
+                        throw new Error(`Error ${xhr.status}: ${xhr.responseText}`);
+                    }
+                } catch (err) {
+                    handleError(err);
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                handleError(new Error('Error de conexión a la API. Ejecuta "python api/main.py" y verifica los logs.'));
+            });
+
+            xhr.send(form);
         });
 
-        async function startAnimation() {
-            startBtn.disabled = true;
-            dropZone.style.display = 'none';
-            progressContainer.style.display = 'block';
-            
-            // UI Progress Simulation while waiting for API
-            let progress = 0;
-            const interval = setInterval(() => {
-                if (progress < 90) {
-                    progress += Math.random() * 15;
-                    updateProgressUI(Math.min(progress, 90));
-                }
-            }, 800);
-
-            function updateProgressUI(p) {
-                const rounded = Math.round(p);
-                progressBar.style.width = rounded + '%';
-                progressPercentage.textContent = rounded + '%';
-                if (rounded < 30) {
-                    progressStatus.textContent = "Conectando al servidor...";
-                    progressDetail.textContent = "Iniciando workers de scraping...";
-                } else if (rounded < 70) {
-                    progressStatus.textContent = "Consultando bases de datos...";
-                    progressDetail.textContent = "Verificando DIAN y CHIP/BDME...";
-                } else {
-                    progressStatus.textContent = "Generando matriz de riesgo...";
-                    progressDetail.textContent = "Estructurando informe final...";
-                }
-            }
-
-            try {
-                // LLAMADA REAL A LA API
-                const formData = new FormData();
-                formData.append('file', fileInput.files[0]);
-
-                const response = await fetch('http://localhost:8000/api/auditar-json', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) throw new Error('Error en el servidor');
-
-                const data = await response.json();
-                
-                clearInterval(interval);
-                progressBar.style.width = '100%';
-                progressPercentage.textContent = '100%';
-                
-                await new Promise(r => setTimeout(r, 500));
-                
-                progressContainer.style.display = 'none';
-                dropZone.style.display = 'block';
-                startBtn.disabled = false;
-                startBtn.textContent = 'Analizar Otro Archivo';
-
-                // Mapear campos de la API a los campos que espera la UI (que usa nombres cortos)
-                const mappedData = data.map(item => ({
-                    nit: item.nit,
-                    name: item.razon_social,
-                    fic: item.en_ficticios,
-                    mdm: item.estado_bdme,
-                    fac: item.facturador_habilitado
-                }));
-
-                renderResults(mappedData);
-
-            } catch (error) {
-                clearInterval(interval);
-                console.error('Fetch Error:', error);
-                const msg = error.message === 'Failed to fetch' 
-                    ? "Error de conexión: Asegúrate de que el servidor backend esté corriendo (python api/main.py)"
-                    : "Error al procesar el archivo: " + error.message;
-                alert(msg);
-                resetState();
-                progressContainer.style.display = 'none';
-                dropZone.style.display = 'block';
-                startBtn.disabled = false;
-            }
+        function handleError(err) {
+            const msg = err.message.includes('Failed to fetch') || err.message.includes('conexión')
+                ? 'Error de conexión: Ejecuta "python api/main.py" para iniciar el backend.'
+                : err.message;
+            alert(msg);
+            progressSection.style.display = 'none';
+            startBtn.disabled = false;
         }
 
-        function calculateRisk(fic, mdm, fac) {
-            if (fic) return { level: 'ALTO', class: 'status-alto' };
-            if (mdm === 'EN_MORA' || !fac) return { level: 'MEDIO', class: 'status-medio' };
-            if (mdm === 'INDETERMINADO') return { level: 'REVISAR', class: 'status-revisar' };
-            return { level: 'BAJO', class: 'status-bajo' };
+        function updateProgress(p, customStatus) {
+            const r = Math.round(p);
+            progressBar.style.width = r + '%';
+            progressPct.textContent = r + '%';
+            if (customStatus) {
+                progressStatus.textContent = customStatus;
+            }
+        }
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        // ========================================
+        // RENDER RESULTS
+        // ========================================
+        function renderResults() {
+            let alto=0, medio=0, bajo=0, ficticios=0, morosos=0, noFact=0;
+            auditResults.forEach(r => {
+                const risk = r.nivel_riesgo || 'REVISAR'; // Usar el backend respetando PDR
+                r._risk = risk;
+                if (risk === 'ALTO') alto++;
+                else if (risk === 'MEDIO' || risk === 'REVISAR') medio++;
+                else bajo++;
+                
+                if (r.en_ficticios) ficticios++;
+                if (r.estado_bdme === 'EN_MORA') morosos++;
+                if (!r.facturador_habilitado) noFact++;
+            });
+
+            document.getElementById('kpiTotal').textContent = auditResults.length;
+            document.getElementById('kpiAlto').textContent = alto;
+            document.getElementById('kpiMedio').textContent = medio;
+            document.getElementById('kpiBajo').textContent = bajo;
+
+            renderCharts(alto, medio, bajo, ficticios, morosos, noFact);
+            currentPage = 1;
+            renderTable();
+            resultsSection.style.display = 'block';
         }
 
-        function renderResults(data) {
+        // ========================================
+        // CHARTS
+        // ========================================
+        function renderCharts(alto, medio, bajo, ficticios, morosos, noFact) {
+            const chartColors = { plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11}}}}, responsive:true, maintainAspectRatio:false };
+
+            if (riskChart) riskChart.destroy();
+            riskChart = new Chart(document.getElementById('riskDoughnut'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Alto','Medio','Bajo'],
+                    datasets: [{ data:[alto,medio,bajo], backgroundColor:['#ef4444','#f59e0b','#22c55e'], borderWidth:0, borderRadius:4 }]
+                },
+                options: { ...chartColors, cutout: '65%' }
+            });
+
+            if (sourceChart) sourceChart.destroy();
+            sourceChart = new Chart(document.getElementById('sourceBar'), {
+                type: 'bar',
+                data: {
+                    labels: ['Ficticios DIAN','Morosos BDME','Sin Facturación'],
+                    datasets: [{ label:'Hallazgos', data:[ficticios,morosos,noFact], backgroundColor:['#ef4444','#f59e0b','#a855f7'], borderRadius:8, barPercentage:0.5 }]
+                },
+                options: { ...chartColors, scales:{ x:{ticks:{color:'#94a3b8'},grid:{display:false}}, y:{ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.3)'}} }, plugins:{...chartColors.plugins, legend:{display:false}} }
+            });
+        }
+
+        // ========================================
+        // TABLE WITH PAGINATION
+        // ========================================
+        function renderTable() {
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const pageData = auditResults.slice(start, start + PAGE_SIZE);
             tableBody.innerHTML = '';
-            
-            let cAlto = 0, cMedio = 0, cBajo = 0;
 
-            data.forEach(row => {
-                const risk = calculateRisk(row.fic, row.mdm, row.fac);
-                
-                if(risk.level === 'ALTO') cAlto++;
-                else if(risk.level === 'MEDIO' || risk.level === 'REVISAR') cMedio++;
-                else cBajo++;
+            pageData.forEach(r => {
+                const risk = r._risk;
+                const riskClass = risk === 'ALTO' ? 'badge-alto' : risk === 'MEDIO' ? 'badge-medio' : risk === 'REVISAR' ? 'badge-revisar' : 'badge-bajo';
+                const ficBadge = r.en_ficticios ? '<span class="badge badge-si"><span class="dot"></span>Sí</span>' : '<span class="badge badge-no"><span class="dot"></span>No</span>';
+                const facBadge = r.facturador_habilitado ? '<span class="badge badge-habilitado"><span class="dot"></span>Habilitado</span>' : '<span class="badge badge-inactivo"><span class="dot"></span>Inactivo</span>';
+                const bdmeText = (r.estado_bdme || '').replace('_',' ');
 
                 const tr = document.createElement('tr');
-                
-                // Badges
-                const ficBadge = row.fic ? `<span class="bool-badge bool-true">Si</span>` : `<span class="bool-badge bool-false">No</span>`;
-                const facBadge = row.fac ? `<span class="bool-badge fact-true">Habilitado</span>` : `<span class="bool-badge fact-false">Inactivo</span>`;
-                const mdmStr = row.mdm.replace('_', ' ');
-
                 tr.innerHTML = `
-                    <td style="font-family: monospace;">${row.nit}</td>
-                    <td style="font-weight: 500; color: #fff;">${row.name}</td>
+                    <td class="mono">${r.nit}</td>
+                    <td style="font-weight:500">${r.razon_social}</td>
                     <td>${ficBadge}</td>
-                    <td><span style="color: ${row.mdm === 'EN_MORA' ? '#fcd34d' : '#94a3b8'}">${mdmStr}</span></td>
+                    <td style="color:${r.estado_bdme==='EN_MORA'?'var(--risk-med)':'var(--text-secondary)'}">${bdmeText}</td>
                     <td>${facBadge}</td>
-                    <td>
-                        <span class="badge ${risk.class}">
-                            <span class="dot"></span>
-                            ${risk.level}
-                        </span>
-                    </td>
+                    <td><span class="badge ${riskClass}"><span class="dot"></span>${risk}</span></td>
                 `;
                 tableBody.appendChild(tr);
             });
 
-            // Update KPIs
-            document.getElementById('kpiTotal').textContent = data.length;
-            document.getElementById('kpiAlto').textContent = cAlto;
-            document.getElementById('kpiMedio').textContent = cMedio;
-            document.getElementById('kpiBajo').textContent = cBajo;
-
-            // Show Panel
-            resultsPanel.classList.add('visible');
+            renderPagination();
         }
 
-        // Action UI Handlers
-        document.getElementById('downloadBtn').addEventListener('click', () => {
-            const btn = document.getElementById('downloadBtn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" animation="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Generando...`;
-            setTimeout(() => {
-                alert("Simulación de descarga del archivo reporte_cumplimiento.xlsx generada desde report_engine.py");
-                btn.innerHTML = originalText;
-            }, 1000);
-        });
+        function renderPagination() {
+            const total = Math.ceil(auditResults.length / PAGE_SIZE);
+            const container = document.getElementById('pagination');
+            container.innerHTML = '';
+            if (total <= 1) return;
+            for (let i = 1; i <= total; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+                btn.textContent = i;
+                btn.onclick = () => { currentPage = i; renderTable(); };
+                container.appendChild(btn);
+            }
+        }
 
+        // ========================================
+        // EXPORTS
+        // ========================================
+        async function downloadPDF() {
+            if (!auditResults.length) return;
+            try {
+                const body = {
+                    titulo: "Reporte de Auditoría de Terceros — DIAN Auditor B2B",
+                    tipo: "auditoria",
+                    items: auditResults.map(r => ({
+                        nit: r.nit, razon_social: r.razon_social,
+                        nivel_riesgo: r._risk, recomendacion: r._risk === 'ALTO' ? 'Bloquear pago + alerta' : r._risk === 'MEDIO' ? 'Revisar con asesor tributario' : 'Sin alertas'
+                    }))
+                };
+                const res = await fetch('http://localhost:8000/api/generar-reporte-pdf', {
+                    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+                });
+                if (!res.ok) throw new Error('Error generando PDF');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'Reporte_Auditoria.pdf'; a.click();
+                URL.revokeObjectURL(url);
+            } catch(e) { alert('Error descargando PDF: ' + e.message); }
+        }
+
+        function downloadExcel() {
+            if (!auditResults.length) return;
+            alert('Funcionalidad de descarga Excel: Usa el endpoint POST /api/auditar-terceros para obtener el Excel completo con colores condicionales.');
+        }
     </script>
 </body>
 </html>

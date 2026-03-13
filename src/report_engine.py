@@ -65,60 +65,117 @@ def get_audit_data(client_file_path: str) -> list[dict]:
         
     ext = os.path.splitext(client_file_path)[1].lower()
     try:
-        if ext in ('.xlsx', '.xls'):
+        # Detectar magia de bytes para archivos Excel escondidos como CSVs
+        is_excel = False
+        with open(client_file_path, 'rb') as f:
+            header = f.read(4)
+            if header.startswith(b'PK\x03\x04') or header.startswith(b'\xd0\xcf\x11\xe0'):
+                is_excel = True
+
+        if is_excel or ext in ('.xlsx', '.xls'):
             df_client = pd.read_excel(client_file_path)
+            # Detectar "CSV-in-Excel": un Excel con 1 sola columna cuyo header tiene comas
+            # significa que alguien pegó texto CSV crudo dentro de Excel
+            if len(df_client.columns) == 1 and ',' in str(df_client.columns[0]):
+                logger.info("Detectado CSV-in-Excel: re-parseando como CSV...")
+                from io import StringIO
+                header_line = str(df_client.columns[0])
+                data_lines = [str(v) for v in df_client.iloc[:, 0].tolist()]
+                csv_text = header_line + '\n' + '\n'.join(data_lines)
+                df_client = pd.read_csv(StringIO(csv_text), sep=',', on_bad_lines='skip')
         else:
-            df_client = pd.read_csv(client_file_path)
+            # Archivo de texto/CSV
+            try:
+                # 1. Autodetección de delimitador
+                df_client = pd.read_csv(client_file_path, sep=None, engine='python', encoding='utf-8', on_bad_lines='skip')
+            except Exception:
+                try:
+                    df_client = pd.read_csv(client_file_path, sep=None, engine='python', encoding='latin-1', on_bad_lines='skip')
+                except Exception:
+                    # 2. Fallback estricto a coma
+                    df_client = pd.read_csv(client_file_path, sep=',', encoding='utf-8', on_bad_lines='skip')
     except Exception as e:
         logger.error(f"Error parseando archivo cliente: {e}")
         raise ValueError("Formato de archivo inválido.")
 
     # Validar columna NIT
-    cols_upper = [str(c).upper() for c in df_client.columns]
-    if 'NIT' not in cols_upper:
-         possible_nits = [c for c in df_client.columns if 'NIT' in str(c).upper() or 'IDENTIFICACION' in str(c).upper()]
-         if not possible_nits:
-             raise ValueError("No se encontró columna 'NIT' en el archivo.")
-         nit_col = possible_nits[0]
-    else:
-         nit_col = df_client.columns[[c.upper() == 'NIT' for c in df_client.columns]][0]
+    cols_upper = [str(c).upper().strip() for c in df_client.columns]
+    nit_col = None
+    
+    # 1. Búsqueda estricta primero
+    for idx, c in enumerate(cols_upper):
+        if c == 'NIT' or c == 'IDENTIFICACION':
+            nit_col = df_client.columns[idx]
+            break
+            
+    # 2. Búsqueda laxa si no hay estricta
+    if not nit_col:
+        for idx, c in enumerate(cols_upper):
+            if 'NIT' in c or 'IDENTIFICACION' in c or 'RUC' in c:
+                nit_col = df_client.columns[idx]
+                break
+            
+    if not nit_col:
+        logger.warning("No se encontró columna NIT. Asumiendo la primera columna...")
+        if len(df_client.columns) > 0:
+            nit_col = df_client.columns[0]
+        else:
+            return [] # Archivo totalmente vacío
          
     def safe_normalize(x):
+        if pd.isna(x):
+            return ""
         try:
-            return normalize_nit(x) if pd.notna(x) else None
+            return normalize_nit(x)
         except ValueError:
-            return None
+            return str(x).strip() # Retorna el valor crudo en vez de fallar
             
     df_client['NIT_NORMALIZADO'] = df_client[nit_col].apply(safe_normalize)
-    df_procesar = df_client.dropna(subset=['NIT_NORMALIZADO']).copy()
+    # Ya no usamos dropna silencioso. Mantenemos todos los registros para entender qué falló.
+    df_procesar = df_client.copy()
     
-    nits_unicos = df_procesar['NIT_NORMALIZADO'].unique().tolist()
-    df_bdme = consult_batch_bdme(nits_unicos)
+    nits_unicos = [n for n in df_procesar['NIT_NORMALIZADO'].unique().tolist() if str(n).isdigit()]
+    df_bdme = consult_batch_bdme(nits_unicos) if nits_unicos else pd.DataFrame()
     
     resultados = []
     for _, row in df_procesar.iterrows():
-        nit = row['NIT_NORMALIZADO']
+        nit_raw = row[nit_col]
+        nit_norm = row['NIT_NORMALIZADO']
+        
         # Buscar nombre/razón social en columnas comunes
-        name_cols = ['RAZON_SOCIAL', 'NOMBRE', 'RAZON SOCIAL', 'TERCERO', 'PROVEEDOR']
-        razon_social = "Desconocido"
+        name_cols = ['RAZON_SOCIAL', 'NOMBRE', 'RAZON SOCIAL', 'TERCERO', 'PROVEEDOR', 'DESCRIPCION']
+        razon_social = str(nit_raw) # Default a mostrar lo que asumimos que es el NIT para debug
         for c in df_client.columns:
-            if c.upper() in name_cols:
+            if str(c).upper().strip() in name_cols:
                 razon_social = row[c]
                 break
         
-        en_ficticios = check_nit_dian(nit)
+        # Validar si el nit normalizado es válido para consultar
+        if not nit_norm or not str(nit_norm).isdigit() or len(str(nit_norm)) < 6:
+            resultados.append({
+                "nit": str(nit_raw)[:20] if nit_raw else "VACÍO",
+                "razon_social": str(razon_social).strip(),
+                "en_ficticios": False,
+                "estado_bdme": "INDETERMINADO",
+                "facturador_habilitado": False,
+                "nivel_riesgo": "REVISAR",
+                "recomendacion": "Celda no es un NIT válido. Verifique el archivo."
+            })
+            continue
+
+        en_ficticios = check_nit_dian(nit_norm)
         
         if not df_bdme.empty and 'nit' in df_bdme.columns:
-            bdme_info = df_bdme[df_bdme['nit'] == nit]
+            bdme_info = df_bdme[df_bdme['nit'] == nit_norm]
             estado_bdme = bdme_info['estado_bdme'].iloc[0] if not bdme_info.empty else "INDETERMINADO"
         else:
             estado_bdme = "INDETERMINADO"
         
-        fact_habilitado = check_facturador_electronico(nit)
+        fact_habilitado = check_facturador_electronico(nit_norm)
         riesgo, recomendacion = calculate_risk(en_ficticios, estado_bdme, fact_habilitado)
         
         resultados.append({
-            "nit": nit,
+            "nit": nit_norm,
             "razon_social": str(razon_social).strip(),
             "en_ficticios": en_ficticios,
             "estado_bdme": estado_bdme,

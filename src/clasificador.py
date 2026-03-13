@@ -35,7 +35,9 @@ import os
 import sys
 import logging
 import numpy as np
+import hashlib
 from typing import Optional
+from functools import lru_cache
 
 # Nuevas dependencias para RAG
 try:
@@ -63,8 +65,8 @@ logger = logging.getLogger("ClasificadorArancelario")
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 # Nombre exacto del modelo a invocar.
-# IMPORTANTE: NO se usa OpenAI. Se usa phi4:latest via Ollama.
-MODELO_IA = "phi4:latest"
+# IMPORTANTE: NO se usa OpenAI. Se usa qwen2.5-coder:7b via Ollama.
+MODELO_IA = "qwen2.5-coder:7b"
 
 # Columnas esperadas en el CSV de entrada del cliente
 COLUMNA_ID = "ID_PRODUCTO"
@@ -76,23 +78,20 @@ COLUMNA_DESCRIPCION = "DESCRIPCION_MERCANCIA"
 # Este prompt está diseñado para usar el contexto pre-clasificado (RAG)
 # y responder exclusivamente en JSON.
 
-SYSTEM_PROMPT = """Eres un auditor aduanero colombiano experto.
-Tu ÚNICA función es analizar descripciones de mercancías y asignar el código arancelario correcto de 10 dígitos.
+SYSTEM_PROMPT = """Eres un auditor aduanero colombiano experto en clasificación arancelaria.
+Tu ÚNICA función es asignar el código HS correcto y proveer un breve razonamiento.
 
-REGLAS ESTRICTAS:
-1. Tu respuesta DEBE ser ÚNICAMENTE un objeto JSON válido. NADA MÁS.
-2. NO incluyas explicaciones, comentarios, texto adicional ni formato markdown.
-3. El código HS DEBE tener exactamente 10 dígitos.
-4. BASA tu decisión principal en los EJEMPLOS HISTÓRICOS (Contexto) provistos. Esta es tu ancla de verdad.
-5. Usa el arancel de aduanas de Colombia basado en la NANDINA si el contexto no es suficiente.
+PROCESO ESTRICTO (RAG):
+1. ANALIZA los EJEMPLOS HISTÓRICOS provistos. Son TU ÚNICA FUENTE DE VERDAD.
+2. Si un ejemplo coincide con la mercancía, USA ESE CÓDIGO y explica por qué en "razonamiento".
+3. Si hay similitud parcial, ADAPTA el código y justifica la adaptación.
+4. NUNCA inventes códigos. Si no puedes clasificar, usa confianza "baja".
 
-FORMATO DE RESPUESTA (JSON puro, sin ```json ni texto):
-{"hs_code": "6403990000", "confianza": "alta"}
-
-NIVELES DE CONFIANZA:
-- "alta": El contexto histórico coincide casi perfectamente.
-- "media": Se tuvo que inferir levemente a partir del contexto.
-- "baja": Ningún contexto sirvió, clasificación a ciegas."""
+REGLAS DE FORMATO:
+- Responde ÚNICAMENTE con un JSON válido. SIN MARKDOWN.
+- El código HS DEBE tener exactamente 10 dígitos numéricos.
+- El JSON debe tener esta estructura exacta: {"hs_code": "1234567890", "confianza": "alta", "razonamiento": "Basado en el ejemplo X..."}
+"""
 
 # ============================================================================
 # CLASE RAG - Base de Conocimiento Aduanera
@@ -118,9 +117,15 @@ class BaseConocimientoAduanera:
     def _inicializar(self):
         if SentenceTransformer is None:
             return
-            
-        logger.info("Inicializando modelo de Embeddings (all-MiniLM-L6-v2)...")
-        self._modelo_embeddings = SentenceTransformer('all-MiniLM-L6-v2')
+        
+        # Intentar GPU (RTX 3050) con fallback a CPU
+        try:
+            import torch
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        except ImportError:
+            device = 'cpu'
+        logger.info(f"Inicializando modelo de Embeddings (all-MiniLM-L6-v2) en {device.upper()}...")
+        self._modelo_embeddings = SentenceTransformer('all-MiniLM-L6-v2', device=device)
         
         # Cargar CSV histórico
         ruta_h = os.path.join(os.path.dirname(__file__), '..', 'data', 'historico_dian.csv')
@@ -132,7 +137,8 @@ class BaseConocimientoAduanera:
         else:
             logger.warning(f"No se encontró histórico RAG en: {ruta_h}")
 
-    def buscar_similares(self, descripcion: str, top_k: int = 3) -> str:
+    @lru_cache(maxsize=1000)
+    def buscar_similares(self, descripcion: str, top_k: int = 10) -> str:
         """Busca y retorna como texto plano los registros más parecidos."""
         if self._modelo_embeddings is None or self._df_historico is None:
             return "No hay contexto disponible."
@@ -183,13 +189,33 @@ def cargar_archivo(ruta_archivo: str) -> pd.DataFrame:
     logger.info(f"Cargando archivo ({ext}): {ruta_archivo}")
 
     try:
-        if ext in ('.xlsx', '.xls'):
+        # Detectar magia de bytes para archivos Excel escondidos como CSVs
+        is_excel = False
+        with open(ruta_archivo, 'rb') as f:
+            header = f.read(4)
+            if header.startswith(b'PK\x03\x04') or header.startswith(b'\xd0\xcf\x11\xe0'):
+                is_excel = True
+
+        if is_excel or ext in ('.xlsx', '.xls'):
             df = pd.read_excel(ruta_archivo)
+            # Detectar "CSV-in-Excel": un Excel con 1 sola columna cuyo header tiene comas
+            if len(df.columns) == 1 and ',' in str(df.columns[0]):
+                logger.info("Detectado CSV-in-Excel: re-parseando como CSV...")
+                from io import StringIO
+                header_line = str(df.columns[0])
+                data_lines = [str(v) for v in df.iloc[:, 0].tolist()]
+                csv_text = header_line + '\n' + '\n'.join(data_lines)
+                df = pd.read_csv(StringIO(csv_text), sep=',', on_bad_lines='skip')
         else:
             try:
-                df = pd.read_csv(ruta_archivo, encoding='utf-8')
-            except UnicodeDecodeError:
-                df = pd.read_csv(ruta_archivo, encoding='latin-1')
+                # 1. Autodetección de delimitador
+                df = pd.read_csv(ruta_archivo, sep=None, engine='python', encoding='utf-8', on_bad_lines='skip')
+            except Exception:
+                try:
+                    df = pd.read_csv(ruta_archivo, sep=None, engine='python', encoding='latin-1', on_bad_lines='skip')
+                except Exception:
+                    # 2. Fallback estricto a coma
+                    df = pd.read_csv(ruta_archivo, sep=',', encoding='utf-8', on_bad_lines='skip')
     except Exception as e:
         logger.error(f"Error cargando archivo: {e}")
         raise ValueError(f"No se pudo leer el archivo: {e}")
@@ -200,19 +226,26 @@ def cargar_archivo(ruta_archivo: str) -> pd.DataFrame:
 
     # Intentar búsqueda insensible a mayúsculas/minúsculas si no se encuentran exactas
     if not columnas_requeridas.issubset(columnas_encontradas):
-        mapping = {c.upper(): c for c in df.columns}
-        if COLUMNA_ID.upper() in mapping and COLUMNA_DESCRIPCION.upper() in mapping:
-            df = df.rename(columns={
-                mapping[COLUMNA_ID.upper()]: COLUMNA_ID,
-                mapping[COLUMNA_DESCRIPCION.upper()]: COLUMNA_DESCRIPCION
-            })
-            columnas_encontradas = set(df.columns.tolist())
+        mapping = {c.upper().strip(): c for c in df.columns}
+        
+        # Heurísticas de nombres de columnas
+        id_alias = next((c for k, c in mapping.items() if 'ID' in k or 'CODIGO' in k or 'REF' in k), None)
+        desc_alias = next((c for k, c in mapping.items() if 'DESC' in k or 'MERCANCIA' in k or 'PRODUCTO' in k), None)
+        
+        if not id_alias or not desc_alias:
+            logger.warning("No se encontraron columnas de ID y DESCRIPCION. Usando las dos primeras columnas como fallback.")
+            if len(df.columns) >= 2:
+                id_alias = df.columns[0]
+                desc_alias = df.columns[1]
+            else:
+                desc_alias = df.columns[0]
+                df['_temp_id'] = range(1, len(df) + 1)
+                id_alias = '_temp_id'
 
-    if not columnas_requeridas.issubset(columnas_encontradas):
-        raise ValueError(
-            f"El archivo no contiene las columnas requeridas: {list(columnas_requeridas)}. "
-            f"Se encontraron: {list(df.columns)}"
-        )
+        df = df.rename(columns={
+            id_alias: COLUMNA_ID,
+            desc_alias: COLUMNA_DESCRIPCION
+        })
 
     # Limpiar datos
     df = df.dropna(subset=[COLUMNA_DESCRIPCION])
@@ -222,27 +255,21 @@ def cargar_archivo(ruta_archivo: str) -> pd.DataFrame:
     return df
 
 
+# Cache LRU para evitar llamadas repetidas a Ollama con la misma descripción
+_cache_clasificacion = {}
+
 def clasificar_producto(descripcion: str) -> dict:
     """
-    Envía la descripción de un producto al modelo phi4:latest via Ollama
-    y retorna el HS Code con su nivel de confianza.
-
-    El modelo recibe un system prompt estricto que lo obliga a responder
-    exclusivamente en formato JSON. Si el modelo devuelve texto libre o
-    JSON malformado, se implementa un proceso de limpieza con regex
-    y un fallback a valores de error.
-
-    Args:
-        descripcion (str): Texto libre describiendo la mercancía a clasificar.
-                          Ej: "Zapatos de cuero italiano con suela de caucho para hombre"
-
-    Returns:
-        dict: Diccionario con las claves:
-              - "hs_code" (str): Código arancelario de 10 dígitos o "ERROR"
-              - "confianza" (str): "alta", "media", "baja" o "error"
+    Envía la descripción de un producto al modelo phi4:latest via Ollama.
+    Implementa cache LRU en memoria para descripciones repetidas.
     """
-    # Valor por defecto en caso de error total
-    resultado_error = {"hs_code": "ERROR", "confianza": "error"}
+    # Verificar cache
+    cache_key = hashlib.md5(descripcion.strip().lower().encode()).hexdigest()
+    if cache_key in _cache_clasificacion:
+        logger.info(f"Cache HIT para: \"{descripcion[:40]}...\"")
+        return _cache_clasificacion[cache_key]
+
+    resultado_error = {"hs_code": "ERROR", "confianza": "error", "razonamiento": "Error processing request."}
 
     # Recuperar Contexto Histórico RAG
     bc = BaseConocimientoAduanera.get_instance()
@@ -293,6 +320,9 @@ def clasificar_producto(descripcion: str) -> dict:
                 # Validar nivel de confianza
                 if resultado["confianza"] not in ("alta", "media", "baja"):
                     resultado["confianza"] = "media"
+                if "razonamiento" not in resultado:
+                    resultado["razonamiento"] = "Razonamiento no proporcionado por el modelo."
+                _cache_clasificacion[cache_key] = resultado
                 return resultado
         except json.JSONDecodeError:
             pass  # Si falla, intentar limpieza con regex
@@ -300,7 +330,7 @@ def clasificar_producto(descripcion: str) -> dict:
         # Intento 2: El modelo a veces envuelve el JSON en markdown (```json ... ```)
         # o agrega texto antes/después. Intentamos extraer el JSON con regex.
         logger.warning("Respuesta no es JSON puro. Intentando extracción con regex...")
-        patron_json = r'\{[^{}]*"hs_code"[^{}]*"confianza"[^{}]*\}'
+        patron_json = r'\{[\s\S]*"hs_code"[\s\S]*"confianza"[\s\S]*\}'
         coincidencia = re.search(patron_json, texto_generado)
 
         if coincidencia:
@@ -309,6 +339,9 @@ def clasificar_producto(descripcion: str) -> dict:
                 resultado["hs_code"] = re.sub(r'[^\d]', '', str(resultado["hs_code"]))
                 if resultado["confianza"] not in ("alta", "media", "baja"):
                     resultado["confianza"] = "media"
+                if "razonamiento" not in resultado:
+                    resultado["razonamiento"] = "Razonamiento extraído mediante limpieza Regex."
+                _cache_clasificacion[cache_key] = resultado
                 return resultado
             except json.JSONDecodeError:
                 pass
@@ -374,6 +407,7 @@ def clasificar_catalogo(ruta_archivo: str) -> pd.DataFrame:
     # Paso 2: Preparar listas para almacenar los resultados de la IA
     lista_hs_codes = []
     lista_confianzas = []
+    lista_razonamientos = []
     total_productos = len(df)
 
     logger.info(f"Iniciando clasificación masiva de {total_productos} productos...")
@@ -394,10 +428,12 @@ def clasificar_catalogo(ruta_archivo: str) -> pd.DataFrame:
         # Acumular los resultados
         lista_hs_codes.append(resultado["hs_code"])
         lista_confianzas.append(resultado["confianza"])
+        lista_razonamientos.append(resultado.get("razonamiento", "N/A"))
 
     # Paso 4: Agregar las columnas de resultado al DataFrame original
     df["HS_CODE"] = lista_hs_codes
     df["CONFIANZA"] = lista_confianzas
+    df["RAZONAMIENTO"] = lista_razonamientos
 
     # Paso 5: Resumen estadístico para el log
     conteo_confianza = df["CONFIANZA"].value_counts()
