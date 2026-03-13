@@ -699,7 +699,11 @@
 
             } catch (error) {
                 clearInterval(interval);
-                alert("Error al procesar el archivo: " + error.message);
+                console.error('Fetch Error:', error);
+                const msg = error.message === 'Failed to fetch' 
+                    ? "Error de conexión: Asegúrate de que el servidor backend esté corriendo (python api/main.py)"
+                    : "Error al procesar el archivo: " + error.message;
+                alert(msg);
                 resetState();
                 progressContainer.style.display = 'none';
                 dropZone.style.display = 'block';

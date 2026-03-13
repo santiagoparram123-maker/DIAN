@@ -966,8 +966,8 @@
             const file = files[0];
             const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
 
-            if (ext !== '.csv') {
-                alert('Este módulo acepta únicamente archivos CSV (.csv)');
+            if (ext !== '.csv' && ext !== '.xlsx' && ext !== '.xls') {
+                alert('Este módulo acepta archivos CSV (.csv) y Excel (.xlsx, .xls)');
                 fileInput.value = '';
                 return;
             }
