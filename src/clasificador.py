@@ -161,65 +161,64 @@ class BaseConocimientoAduanera:
 # FUNCIONES PRINCIPALES
 # ============================================================================
 
-def cargar_csv(ruta_csv: str) -> pd.DataFrame:
+def cargar_archivo(ruta_archivo: str) -> pd.DataFrame:
     """
-    Lee y valida un archivo CSV con descripciones de productos.
+    Lee y valida un archivo CSV o Excel con descripciones de productos.
 
-    El CSV debe contener al menos dos columnas:
+    El archivo debe contener al menos dos columnas:
     - ID_PRODUCTO: Identificador único del producto (str o int)
     - DESCRIPCION_MERCANCIA: Texto libre describiendo la mercancía
 
     Args:
-        ruta_csv (str): Ruta absoluta o relativa al archivo CSV.
+        ruta_archivo (str): Ruta absoluta o relativa al archivo CSV o Excel.
 
     Returns:
         pd.DataFrame: DataFrame con las columnas validadas.
-
-    Raises:
-        FileNotFoundError: Si el archivo no existe en la ruta especificada.
-        ValueError: Si el CSV no contiene las columnas requeridas.
     """
-    # Verificar existencia del archivo
-    if not os.path.exists(ruta_csv):
-        logger.error(f"Archivo no encontrado: {ruta_csv}")
-        raise FileNotFoundError(f"El archivo CSV no se encontró en: {ruta_csv}")
+    if not os.path.exists(ruta_archivo):
+        logger.error(f"Archivo no encontrado: {ruta_archivo}")
+        raise FileNotFoundError(f"El archivo no se encontró en: {ruta_archivo}")
 
-    logger.info(f"Cargando archivo CSV: {ruta_csv}")
+    ext = os.path.splitext(ruta_archivo)[1].lower()
+    logger.info(f"Cargando archivo ({ext}): {ruta_archivo}")
 
-    # Leer el CSV con pandas, intentando detectar el separador automáticamente
     try:
-        df = pd.read_csv(ruta_csv, encoding='utf-8')
-    except UnicodeDecodeError:
-        # Algunos CSVs de Windows usan codificación latin-1
-        logger.warning("Error de encoding UTF-8, reintentando con latin-1...")
-        df = pd.read_csv(ruta_csv, encoding='latin-1')
+        if ext in ('.xlsx', '.xls'):
+            df = pd.read_excel(ruta_archivo)
+        else:
+            try:
+                df = pd.read_csv(ruta_archivo, encoding='utf-8')
+            except UnicodeDecodeError:
+                df = pd.read_csv(ruta_archivo, encoding='latin-1')
+    except Exception as e:
+        logger.error(f"Error cargando archivo: {e}")
+        raise ValueError(f"No se pudo leer el archivo: {e}")
 
     # Validar que las columnas requeridas estén presentes
     columnas_requeridas = {COLUMNA_ID, COLUMNA_DESCRIPCION}
-    columnas_encontradas = set(df.columns.tolist())
+    columnas_encontradas = {str(c) for c in df.columns}
+
+    # Intentar búsqueda insensible a mayúsculas/minúsculas si no se encuentran exactas
+    if not columnas_requeridas.issubset(columnas_encontradas):
+        mapping = {c.upper(): c for c in df.columns}
+        if COLUMNA_ID.upper() in mapping and COLUMNA_DESCRIPCION.upper() in mapping:
+            df = df.rename(columns={
+                mapping[COLUMNA_ID.upper()]: COLUMNA_ID,
+                mapping[COLUMNA_DESCRIPCION.upper()]: COLUMNA_DESCRIPCION
+            })
+            columnas_encontradas = set(df.columns.tolist())
 
     if not columnas_requeridas.issubset(columnas_encontradas):
-        columnas_faltantes = columnas_requeridas - columnas_encontradas
         raise ValueError(
-            f"El CSV no contiene las columnas requeridas. "
-            f"Faltantes: {columnas_faltantes}. "
-            f"Columnas encontradas: {list(columnas_encontradas)}. "
-            f"Se esperaban: {list(columnas_requeridas)}"
+            f"El archivo no contiene las columnas requeridas: {list(columnas_requeridas)}. "
+            f"Se encontraron: {list(df.columns)}"
         )
 
-    # Eliminar filas donde la descripción esté vacía o sea NaN
-    filas_originales = len(df)
+    # Limpiar datos
     df = df.dropna(subset=[COLUMNA_DESCRIPCION])
     df[COLUMNA_DESCRIPCION] = df[COLUMNA_DESCRIPCION].astype(str).str.strip()
     df = df[df[COLUMNA_DESCRIPCION] != '']
 
-    filas_eliminadas = filas_originales - len(df)
-    if filas_eliminadas > 0:
-        logger.warning(
-            f"Se eliminaron {filas_eliminadas} filas con descripciones vacías o nulas."
-        )
-
-    logger.info(f"CSV cargado exitosamente. {len(df)} productos para clasificar.")
     return df
 
 
@@ -351,9 +350,9 @@ def clasificar_producto(descripcion: str) -> dict:
         return resultado_error
 
 
-def clasificar_catalogo(ruta_csv: str) -> pd.DataFrame:
+def clasificar_catalogo(ruta_archivo: str) -> pd.DataFrame:
     """
-    Pipeline completo: carga un CSV de productos, clasifica cada uno con IA,
+    Pipeline completo: carga un archivo de productos, clasifica cada uno con IA,
     y retorna un DataFrame enriquecido con los resultados.
 
     Esta es la función principal que orquesta todo el proceso de clasificación
@@ -361,16 +360,16 @@ def clasificar_catalogo(ruta_csv: str) -> pd.DataFrame:
     ejecución dependerá del rendimiento del modelo local.
 
     Args:
-        ruta_csv (str): Ruta al archivo CSV con las columnas
-                       ID_PRODUCTO y DESCRIPCION_MERCANCIA.
+        ruta_archivo (str): Ruta al archivo CSV/Excel con las columnas
+                           ID_PRODUCTO y DESCRIPCION_MERCANCIA.
 
     Returns:
         pd.DataFrame: DataFrame original enriquecido con las columnas:
                      - HS_CODE: Código arancelario asignado por la IA
                      - CONFIANZA: Nivel de confianza ("alta", "media", "baja", "error")
     """
-    # Paso 1: Cargar y validar el CSV
-    df = cargar_csv(ruta_csv)
+    # Paso 1: Cargar y validar el archivo
+    df = cargar_archivo(ruta_archivo)
 
     # Paso 2: Preparar listas para almacenar los resultados de la IA
     lista_hs_codes = []

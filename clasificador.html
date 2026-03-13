@@ -7,7 +7,10 @@
     <title>Clasificador Arancelario IA — DIAN Auditor B2B</title>
     <meta name="description"
         content="Auto-clasificador arancelario masivo con inteligencia artificial para importaciones colombianas. Asigna códigos HS automáticamente usando phi4:latest.">
+    
+    <!-- Librerías Externas -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         /* ================================================================
            DESIGN SYSTEM — Variables compartidas con dashboard.html
@@ -790,8 +793,9 @@
                 </svg>
                 Catálogo de Productos
             </h2>
-            <p>Sube un archivo CSV con las descripciones de mercancías. La IA clasificará cada producto con su partida
+            <p>Sube un archivo CSV o Excel con las descripciones de mercancías. La IA clasificará cada producto con su partida
                 arancelaria (HS Code) automáticamente.</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Formatos: <strong>.csv, .xlsx, .xls</strong></p>
 
             <div class="csv-format-hint">
                 <div class="header-line">ID_PRODUCTO,DESCRIPCION_MERCANCIA</div>
@@ -802,10 +806,10 @@
             <div class="drop-zone" id="dropZone">
                 <div class="drop-zone-icon">📋</div>
                 <div class="drop-zone-text" id="dropText">
-                    <strong>Arrastra tu CSV aquí</strong><br>
-                    <span style="font-size:0.85rem">o haz clic para explorar</span>
+                    <strong>Arrastra tu archivo aquí</strong><br>
+                    <span style="font-size:0.85rem">o haz clic para explorar (.csv, .xlsx, .xls)</span>
                 </div>
-                <input type="file" class="file-input" id="fileInput" accept=".csv">
+                <input type="file" class="file-input" id="fileInput" accept=".csv, .xlsx, .xls">
             </div>
 
             <div class="progress-container" id="progressContainer">
@@ -1124,9 +1128,9 @@
             progressContainer.style.display = 'block';
             resetResults();
 
-            // Leer el archivo CSV del navegador
-            const text = await selectedFile.text();
-            const productos = parseCSV(text);
+            // 1. Leer y parsear el archivo (CSV o Excel)
+            updateProgress(0, 100, 'Leyendo archivo...', 'Analizando estructura de datos...');
+            const productos = await parseFile(selectedFile);
 
             if (productos.length === 0) {
                 alert('No se encontraron productos válidos en el CSV.');
@@ -1157,12 +1161,27 @@
                 progressItem.style.display = 'block';
                 progressItem.innerHTML = `<strong>${prod.id}:</strong> ${truncate(prod.descripcion, 60)}`;
 
-                // Simular tiempo de inferencia del modelo (en producción es la llamada a Ollama)
-                const delay = Math.random() * 600 + 400;
-                await sleep(delay);
-
-                // Clasificar (mock)
-                const resultado = mockClassify(prod.descripcion);
+                // --- CIERRE DE MOCK: LLAMADA REAL A LA API ---
+                let resultado;
+                try {
+                    const response = await fetch('http://localhost:8000/classify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ descripcion: prod.descripcion })
+                    });
+                    
+                    if (!response.ok) throw new Error('Error en API');
+                    
+                    const apiData = await response.json();
+                    resultado = {
+                        hs_code: apiData.hs_code,
+                        confianza: apiData.confidence_score
+                    };
+                } catch (error) {
+                    console.error('API Error:', error);
+                    // Fallback a mock solo si la API falla catastróficamente
+                    resultado = mockClassify(prod.descripcion);
+                }
                 resultados.push({
                     ID_PRODUCTO: prod.id,
                     DESCRIPCION_MERCANCIA: prod.descripcion,
@@ -1208,7 +1227,52 @@
             startBtn.disabled = false;
             fileInput.value = '';
             selectedFile = null;
-            dropText.innerHTML = '<strong>Arrastra tu CSV aquí</strong><br><span style="font-size:0.85rem">o haz clic para explorar</span>';
+            dropText.innerHTML = '<strong>Arrastra tu archivo aquí</strong><br><span style="font-size:0.85rem">o haz clic para explorar</span>';
+        }
+
+        // ================================================================
+        // FILE PARSING — Soporte CSV y XLSX (SheetJS)
+        // ================================================================
+        async function parseFile(file) {
+            const fileName = file.name.toLowerCase();
+            
+            if (fileName.endsWith('.csv')) {
+                const text = await file.text();
+                return parseCSV(text);
+            } else {
+                // Excel (.xlsx, .xls)
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            const json = XLSX.utils.sheet_to_json(worksheet);
+                            
+                            // Mapear columnas (insensible a mayúsculas)
+                            const results = json.map(row => {
+                                const idKey = Object.keys(row).find(k => k.toUpperCase() === 'ID_PRODUCTO');
+                                const descKey = Object.keys(row).find(k => k.toUpperCase() === 'DESCRIPCION_MERCANCIA');
+                                
+                                if (idKey && descKey) {
+                                    return {
+                                        id: String(row[idKey]),
+                                        descripcion: String(row[descKey])
+                                    };
+                                }
+                                return null;
+                            }).filter(x => x !== null);
+                            
+                            resolve(results);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+            }
         }
 
         // ================================================================

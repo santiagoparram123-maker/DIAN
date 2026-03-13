@@ -55,34 +55,34 @@ def calculate_risk(en_ficticios: bool, estado_bdme: str, facturador_habilitado: 
         
     return "BAJO", "Proveedor verificado — sin alertas"
 
-def generate_report(client_excel_path: str, output_path: str = None) -> str:
+def get_audit_data(client_file_path: str) -> list[dict]:
     """
-    Genera el reporte final evaluando el riesgo de cada NIT dado.
+    Procesa el archivo del cliente y retorna una lista de diccionarios con los hallazgos.
+    Útil para integraciones vía API que requieren JSON en lugar de un archivo Excel.
     """
-    if not os.path.exists(client_excel_path):
-        raise FileNotFoundError(f"Archivo de entrada del cliente no encontrado en {client_excel_path}")
+    if not os.path.exists(client_file_path):
+        raise FileNotFoundError(f"Archivo de entrada no encontrado: {client_file_path}")
         
-    logger.info(f"Generando reporte a partir de: {client_excel_path}")
-    
-    # 1. Leer excel
+    ext = os.path.splitext(client_file_path)[1].lower()
     try:
-        df_client = pd.read_excel(client_excel_path)
+        if ext in ('.xlsx', '.xls'):
+            df_client = pd.read_excel(client_file_path)
+        else:
+            df_client = pd.read_csv(client_file_path)
     except Exception as e:
-        logger.error(f"Error parseando Excel cliente: {e}")
-        raise ValueError("El archivo Excel del cliente está corrupto o tiene formato inválido.")
-        
+        logger.error(f"Error parseando archivo cliente: {e}")
+        raise ValueError("Formato de archivo inválido.")
+
     # Validar columna NIT
-    if 'NIT' not in [c.upper() for c in df_client.columns]:
-         # Intentemos buscar cual es la de nit
+    cols_upper = [str(c).upper() for c in df_client.columns]
+    if 'NIT' not in cols_upper:
          possible_nits = [c for c in df_client.columns if 'NIT' in str(c).upper() or 'IDENTIFICACION' in str(c).upper()]
          if not possible_nits:
              raise ValueError("No se encontró columna 'NIT' en el archivo.")
-         else:
-             nit_col = possible_nits[0]
+         nit_col = possible_nits[0]
     else:
          nit_col = df_client.columns[[c.upper() == 'NIT' for c in df_client.columns]][0]
          
-    # 2. Normalizar NITs y remover nulos para la consulta
     def safe_normalize(x):
         try:
             return normalize_nit(x) if pd.notna(x) else None
@@ -93,44 +93,59 @@ def generate_report(client_excel_path: str, output_path: str = None) -> str:
     df_procesar = df_client.dropna(subset=['NIT_NORMALIZADO']).copy()
     
     nits_unicos = df_procesar['NIT_NORMALIZADO'].unique().tolist()
-    
-    # 3. Lote a BDME
     df_bdme = consult_batch_bdme(nits_unicos)
     
-    # 4. Consolidar tabla de resultados
     resultados = []
-    
     for _, row in df_procesar.iterrows():
         nit = row['NIT_NORMALIZADO']
-        razon_social = row.get('RAZON_SOCIAL', row.get('NOMBRE', row.get('NOMBRE O RAZON SOCIAL', '')))
+        # Buscar nombre/razón social en columnas comunes
+        name_cols = ['RAZON_SOCIAL', 'NOMBRE', 'RAZON SOCIAL', 'TERCERO', 'PROVEEDOR']
+        razon_social = "Desconocido"
+        for c in df_client.columns:
+            if c.upper() in name_cols:
+                razon_social = row[c]
+                break
         
-        # Validaciones
         en_ficticios = check_nit_dian(nit)
         
-        # Buscar en cache lote
         if not df_bdme.empty and 'nit' in df_bdme.columns:
             bdme_info = df_bdme[df_bdme['nit'] == nit]
             estado_bdme = bdme_info['estado_bdme'].iloc[0] if not bdme_info.empty else "INDETERMINADO"
         else:
             estado_bdme = "INDETERMINADO"
         
-        # API facturador
         fact_habilitado = check_facturador_electronico(nit)
-        
-        # Calcular riesgo
         riesgo, recomendacion = calculate_risk(en_ficticios, estado_bdme, fact_habilitado)
         
         resultados.append({
-            "NIT": nit,
-            "RAZON_SOCIAL": str(razon_social).strip(),
-            "EN_FICTICIOS": en_ficticios,
-            "ESTADO_BDME": estado_bdme,
-            "FACTURADOR_HABILITADO": fact_habilitado,
-            "NIVEL_RIESGO": riesgo,
-            "RECOMENDACION": recomendacion
+            "nit": nit,
+            "razon_social": str(razon_social).strip(),
+            "en_ficticios": en_ficticios,
+            "estado_bdme": estado_bdme,
+            "facturador_habilitado": fact_habilitado,
+            "nivel_riesgo": riesgo,
+            "recomendacion": recomendacion
         })
 
+    return resultados
+
+def generate_report(client_excel_path: str, output_path: str = None) -> str:
+    """
+    Genera el reporte final evaluando el riesgo de cada NIT dado.
+    """
+    resultados = get_audit_data(client_excel_path)
     df_resultado = pd.DataFrame(resultados)
+    
+    # Mapear nombres para compatibilidad con el resto del módulo
+    df_resultado = df_resultado.rename(columns={
+        "nit": "NIT",
+        "razon_social": "RAZON_SOCIAL",
+        "en_ficticios": "EN_FICTICIOS",
+        "estado_bdme": "ESTADO_BDME",
+        "facturador_habilitado": "FACTURADOR_HABILITADO",
+        "nivel_riesgo": "NIVEL_RIESGO",
+        "recomendacion": "RECOMENDACION"
+    })
     
     # 5. Generar Excel
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")

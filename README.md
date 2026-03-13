@@ -17,10 +17,10 @@
 
 ## 🧭 Descripción General
 
-El **Auditor de Terceros y Cumplimiento DIAN** es un sistema Micro-SaaS B2B desarrollado para automatizar la auditoría de riesgos tributarios en proveedores de empresas.
+El **Auditor de Terceros y Cumplimiento DIAN** es un sistema Micro-SaaS B2B desarrollado para automatizar la auditoría de riesgos tributarios en proveedores de empresas. Soporta archivos **CSV y Excel (XLSX/XLS)**.
 El propósito del trabajo es aplicar técnicas de cruce de bases de datos, web scraping avanzado y normalización de textos, tomando como referencia fuentes gubernamentales como el **Listado de Proveedores Ficticios de la DIAN** y el **Boletín de Deudores Morosos del Estado (BDME) del CHIP**.
 
-Además, incluye un módulo de **Auto-Clasificación Arancelaria Masiva** impulsado por IA local (`phi4:latest` vía Ollama), diseñado para agencias de aduanas que necesitan asignar automáticamente partidas arancelarias a catálogos enteros de productos importados a Colombia, reduciendo drásticamente el tiempo de clasificación manual.
+Además, incluye un módulo de **Auto-Clasificación Arancelaria Masiva** impulsado por IA local (`phi4:latest` vía Ollama), diseñado para agencias de aduanas que necesitan asignar automáticamente partidas arancelarias a catálogos enteros de productos importados a Colombia (desde **Excel o CSV**), reduciendo drásticamente el tiempo de clasificación manual.
 
 Este repositorio contiene la **estructura completa del proyecto**, archivos base, scripts modulares, y una interfaz de usuario (*Dashboard*) preparados para su ejecución y despliegue local.
 

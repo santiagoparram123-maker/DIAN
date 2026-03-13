@@ -636,78 +636,75 @@
             dropZone.style.display = 'none';
             progressContainer.style.display = 'block';
             
-            // Generate Dynamic Mock Data instead of hardcoded to simulate parsing the new file
-            const generateMockData = () => {
-                const baseNames = [
-                    "Servicios Generales S.A.S", "Distribuidora Nacional LTDA", 
-                    "SERVICIOS & SUMINISTROS JARS", "TRADEFRONTERAS S.A.S.", 
-                    "Tech Solutions Colombia", "DISTRIBUIDORA LA PEÑA S.A.S.", 
-                    "Consultorías y Proyectos 360", "Inversiones del Norte",
-                    "Comercializadora Global", "Constructora Cifras"
-                ];
-                const mdms = ["SIN_DEUDA", "SIN_DEUDA", "EN_MORA", "INDETERMINADO"];
+            // UI Progress Simulation while waiting for API
+            let progress = 0;
+            const interval = setInterval(() => {
+                if (progress < 90) {
+                    progress += Math.random() * 15;
+                    updateProgressUI(Math.min(progress, 90));
+                }
+            }, 800);
+
+            function updateProgressUI(p) {
+                const rounded = Math.round(p);
+                progressBar.style.width = rounded + '%';
+                progressPercentage.textContent = rounded + '%';
+                if (rounded < 30) {
+                    progressStatus.textContent = "Conectando al servidor...";
+                    progressDetail.textContent = "Iniciando workers de scraping...";
+                } else if (rounded < 70) {
+                    progressStatus.textContent = "Consultando bases de datos...";
+                    progressDetail.textContent = "Verificando DIAN y CHIP/BDME...";
+                } else {
+                    progressStatus.textContent = "Generando matriz de riesgo...";
+                    progressDetail.textContent = "Estructurando informe final...";
+                }
+            }
+
+            try {
+                // LLAMADA REAL A LA API
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+
+                const response = await fetch('http://localhost:8000/api/auditar-json', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Error en el servidor');
+
+                const data = await response.json();
                 
-                const numRows = Math.floor(Math.random() * 6) + 5; // Entre 5 y 10 registros
-                const data = [];
-                for(let i=0; i<numRows; i++) {
-                    data.push({
-                        nit: "90" + Math.floor(Math.random() * 9000000).toString().padStart(7, '0'),
-                        name: baseNames[Math.floor(Math.random() * baseNames.length)],
-                        fic: Math.random() > 0.8,
-                        mdm: mdms[Math.floor(Math.random() * mdms.length)],
-                        fac: Math.random() > 0.2
-                    });
-                }
-                // Si es el nombre del primer test, forzar a la data estática original para consistencia
-                if (selectedFileName === 'Proveedores-Ficticios-16022026.xlsx' || window.firstRun) {
-                    window.firstRun = false;
-                    return [
-                        { nit: "900123456", name: "Servicios Generales S.A.S", fic: false, mdm: "SIN_DEUDA", fac: true },
-                        { nit: "801004345", name: "Distribuidora Nacional LTDA", fic: false, mdm: "EN_MORA", fac: true },
-                        { nit: "901565796", name: "SERVICIOS & SUMINISTROS JARS", fic: true, mdm: "INDETERMINADO", fac: false },
-                        { nit: "900425559", name: "TRADEFRONTERAS S.A.S.", fic: true, mdm: "SIN_DEUDA", fac: true },
-                        { nit: "830005210", name: "Tech Solutions Colombia", fic: false, mdm: "SIN_DEUDA", fac: true }
-                    ];
-                }
-                return data;
-            };
+                clearInterval(interval);
+                progressBar.style.width = '100%';
+                progressPercentage.textContent = '100%';
+                
+                await new Promise(r => setTimeout(r, 500));
+                
+                progressContainer.style.display = 'none';
+                dropZone.style.display = 'block';
+                startBtn.disabled = false;
+                startBtn.textContent = 'Analizar Otro Archivo';
 
-            const dummyData = generateMockData();
+                // Mapear campos de la API a los campos que espera la UI (que usa nombres cortos)
+                const mappedData = data.map(item => ({
+                    nit: item.nit,
+                    name: item.razon_social,
+                    fic: item.en_ficticios,
+                    mdm: item.estado_bdme,
+                    fac: item.facturador_habilitado
+                }));
 
-            const total = dummyData.length;
-            let current = 0;
+                renderResults(mappedData);
 
-            const updateProgress = (detail, stage) => {
-                const p = Math.round((current / total) * 100);
-                progressBar.style.width = p + '%';
-                progressPercentage.textContent = p + '%';
-                progressStatus.textContent = stage;
-                progressDetail.textContent = detail;
+            } catch (error) {
+                clearInterval(interval);
+                alert("Error al procesar el archivo: " + error.message);
+                resetState();
+                progressContainer.style.display = 'none';
+                dropZone.style.display = 'block';
+                startBtn.disabled = false;
             }
-            
-            // Initial Wait
-            updateProgress("Iniciando workers de navegador headless...", "Conectando al servidor");
-            await new Promise(r => setTimeout(r, 1000));
-            updateProgress("Limpiando y normalizando matriz de NITs a 9 dígitos.", "Pre-procesamiento");
-            await new Promise(r => setTimeout(r, 1000));
-
-            for (const row of dummyData) {
-                current++;
-                updateProgress(`Navegando portal BDME y DIAN para el NIT: ${row.nit}`, `Scraping NIT ${current}/${total}`);
-                // Simulate variable delay (like random.uniform(1.5, 3.0) from bdme_scraper)
-                const delay = Math.random() * 1000 + 500; 
-                await new Promise(r => setTimeout(r, delay));
-            }
-
-            updateProgress("Evaluando matriz de reglas y estructurando reporte Parquet y Excel.", "Generando Reportes");
-            await new Promise(r => setTimeout(r, 1500));
-            
-            progressContainer.style.display = 'none';
-            dropZone.style.display = 'block';
-            startBtn.disabled = false;
-            startBtn.textContent = 'Analizar Otro Archivo';
-
-            renderResults(dummyData);
         }
 
         function calculateRisk(fic, mdm, fac) {

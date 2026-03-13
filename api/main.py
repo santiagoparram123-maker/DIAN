@@ -22,11 +22,13 @@ except ImportError:
         return pd.DataFrame([{"ID_PRODUCTO": "1", "DESCRIPCION_MERCANCIA": "mock", "HS_CODE": "0", "CONFIANZA": "error"}])
 
 try:
-    from report_engine import generate_report
+    from report_engine import generate_report, get_audit_data
 except ImportError:
     logging.warning("No se pudo importar 'report_engine'. El endpoint de auditoría de terceros puede fallar.")
     def generate_report(ruta, output_path=None):
         return "mocked_path.xlsx"
+    def get_audit_data(ruta):
+        return [{"nit": "0", "razon_social": "error", "nivel_riesgo": "BAJO"}]
 
 # --- Modelos Pydantic para Validación ---
 class ClassificationRequest(BaseModel):
@@ -115,17 +117,40 @@ async def auditar_terceros(file: UploadFile = File(...)):
         logging.error(f"Error auditando terceros: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/auditar-json", tags=["Comercial"])
+async def auditar_json(file: UploadFile = File(...)):
+    """
+    Recibe un archivo Excel/CSV y devuelve los resultados en JSON
+    directamente para mostrarlos en el Dashboard.
+    """
+    if not file.filename.lower().endswith(('.xlsx', '.xls', '.csv')):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un Excel o CSV")
+        
+    try:
+        suffix = os.path.splitext(file.filename)[1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+            shutil.copyfileobj(file.file, tmp_file)
+            tmp_path = tmp_file.name
+            
+        resultados = get_audit_data(tmp_path)
+        os.remove(tmp_path)
+        return resultados
+    except Exception as e:
+        logging.error(f"Error procesando auditoría JSON: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/clasificar-masivo", tags=["Comercial"])
 async def clasificar_masivo(file: UploadFile = File(...)):
     """
-    Recibe un archivo CSV de mercancías, lo clasifica masivamente usando 
+    Recibe un archivo CSV o Excel de mercancías, lo clasifica masivamente usando 
     el modelo de IA predictiva Ollama y devuelve un JSON estructurado con los resultados.
     """
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="El archivo debe ser un CSV")
+    if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un CSV o Excel")
         
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp_file:
+        suffix = os.path.splitext(file.filename)[1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
             shutil.copyfileobj(file.file, tmp_file)
             tmp_path = tmp_file.name
             
