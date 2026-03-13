@@ -7,7 +7,7 @@
 #
 # DESCRIPCIÓN:
 # Este módulo implementa un clasificador arancelario automatizado que utiliza
-# el modelo de lenguaje qwen2.5-coder:7b (ejecutado localmente con Ollama)
+# el modelo de lenguaje phi4:latest (ejecutado localmente con Ollama)
 # para asignar códigos HS (Harmonized System) de 10 dígitos a mercancías
 # descritas en texto libre. Diseñado para agencias de aduanas que necesitan
 # clasificar catálogos masivos de productos importados a Colombia.
@@ -16,7 +16,7 @@
 # CSV (ID_PRODUCTO, DESCRIPCION_MERCANCIA)
 #   → Pandas DataFrame
 #     → Iteración por cada descripción
-#       → Prompt a qwen2.5-coder:7b vía Ollama API local
+#       → Prompt a phi4:latest vía Ollama API local
 #         → Parseo JSON con manejo de errores robusto
 #           → DataFrame de resultados con HS Code + nivel de confianza
 #             → JSON exportable para el frontend
@@ -225,7 +225,7 @@ def cargar_csv(ruta_csv: str) -> pd.DataFrame:
 
 def clasificar_producto(descripcion: str) -> dict:
     """
-    Envía la descripción de un producto al modelo qwen2.5-coder:7b via Ollama
+    Envía la descripción de un producto al modelo phi4:latest via Ollama
     y retorna el HS Code con su nivel de confianza.
 
     El modelo recibe un system prompt estricto que lo obliga a responder

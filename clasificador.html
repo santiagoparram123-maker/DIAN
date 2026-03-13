@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clasificador Arancelario IA — DIAN Auditor B2B</title>
-    <meta name="description" content="Auto-clasificador arancelario masivo con inteligencia artificial para importaciones colombianas. Asigna códigos HS automáticamente usando qwen2.5-coder:7b.">
+    <meta name="description"
+        content="Auto-clasificador arancelario masivo con inteligencia artificial para importaciones colombianas. Asigna códigos HS automáticamente usando phi4:latest.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         /* ================================================================
@@ -22,20 +24,20 @@
             --border-color: #334155;
             --purple: #8b5cf6;
             --purple-glow: rgba(139, 92, 246, 0.15);
-            
+
             /* Colores de Confianza */
             --conf-alta-bg: #052e16;
             --conf-alta-text: #86efac;
             --conf-alta-border: #15803d;
-            
+
             --conf-media-bg: #422006;
             --conf-media-text: #fcd34d;
             --conf-media-border: #92400e;
-            
+
             --conf-baja-bg: #450a0a;
             --conf-baja-text: #fca5a5;
             --conf-baja-border: #991b1b;
-            
+
             --conf-error-bg: #1c1917;
             --conf-error-text: #a8a29e;
             --conf-error-border: #57534e;
@@ -119,8 +121,15 @@
         }
 
         @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.4); }
-            50% { box-shadow: 0 0 0 6px rgba(96, 165, 250, 0); }
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 0 6px rgba(96, 165, 250, 0);
+            }
         }
 
         .nav-link {
@@ -137,7 +146,7 @@
 
         .nav-link:hover {
             color: var(--text-main);
-            background: rgba(255,255,255, 0.05);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         /* ================================================================
@@ -163,7 +172,7 @@
             padding: 2rem;
             border: 1px solid var(--border-color);
             height: fit-content;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
             position: sticky;
             top: 90px;
         }
@@ -212,7 +221,8 @@
             background: rgba(15, 23, 42, 0.3);
         }
 
-        .drop-zone:hover, .drop-zone.dragover {
+        .drop-zone:hover,
+        .drop-zone.dragover {
             border-color: var(--accent);
             background: var(--accent-glow);
             transform: translateY(-2px);
@@ -235,7 +245,10 @@
 
         .file-input {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             opacity: 0;
             cursor: pointer;
         }
@@ -263,8 +276,11 @@
         .btn-primary::before {
             content: '';
             position: absolute;
-            top: 0; left: -100%; width: 200%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            top: 0;
+            left: -100%;
+            width: 200%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
             transition: left 0.5s;
         }
 
@@ -353,15 +369,23 @@
         .progress-fill::after {
             content: '';
             position: absolute;
-            top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 100%);
             animation: shimmer 1.5s infinite;
             transform: skewX(-20deg);
         }
 
         @keyframes shimmer {
-            0% { transform: translateX(-100%) skewX(-20deg); }
-            100% { transform: translateX(200%) skewX(-20deg); }
+            0% {
+                transform: translateX(-100%) skewX(-20deg);
+            }
+
+            100% {
+                transform: translateX(200%) skewX(-20deg);
+            }
         }
 
         .progress-detail {
@@ -388,8 +412,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-4px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* ================================================================
@@ -402,7 +433,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
             opacity: 0;
             transform: translateY(20px);
             transition: opacity 0.5s ease, transform 0.5s ease;
@@ -436,7 +467,7 @@
 
         .kpi-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
         }
 
         .kpi-label {
@@ -452,15 +483,24 @@
             font-weight: 700;
         }
 
-        .kpi-card.total .kpi-val { 
+        .kpi-card.total .kpi-val {
             background: linear-gradient(135deg, #60a5fa, #a78bfa);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .kpi-card.alta .kpi-val { color: var(--conf-alta-text); }
-        .kpi-card.media .kpi-val { color: var(--conf-media-text); }
-        .kpi-card.baja .kpi-val { color: var(--conf-baja-text); }
+
+        .kpi-card.alta .kpi-val {
+            color: var(--conf-alta-text);
+        }
+
+        .kpi-card.media .kpi-val {
+            color: var(--conf-media-text);
+        }
+
+        .kpi-card.baja .kpi-val {
+            color: var(--conf-baja-text);
+        }
 
         /* Table */
         .table-container {
@@ -509,8 +549,15 @@
             backdrop-filter: blur(4px);
         }
 
-        th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-        th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+        th:first-child {
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+        }
+
+        th:last-child {
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
 
         td {
             padding: 1rem;
@@ -590,10 +637,25 @@
             display: inline-block;
         }
 
-        .badge-alta .dot { background: var(--conf-alta-text); box-shadow: 0 0 8px var(--conf-alta-text); }
-        .badge-media .dot { background: var(--conf-media-text); box-shadow: 0 0 8px var(--conf-media-text); }
-        .badge-baja .dot { background: var(--conf-baja-text); box-shadow: 0 0 8px var(--conf-baja-text); }
-        .badge-error .dot { background: var(--conf-error-text); box-shadow: 0 0 8px var(--conf-error-text); }
+        .badge-alta .dot {
+            background: var(--conf-alta-text);
+            box-shadow: 0 0 8px var(--conf-alta-text);
+        }
+
+        .badge-media .dot {
+            background: var(--conf-media-text);
+            box-shadow: 0 0 8px var(--conf-media-text);
+        }
+
+        .badge-baja .dot {
+            background: var(--conf-baja-text);
+            box-shadow: 0 0 8px var(--conf-baja-text);
+        }
+
+        .badge-error .dot {
+            background: var(--conf-error-text);
+            box-shadow: 0 0 8px var(--conf-error-text);
+        }
 
         /* Download Button */
         .download-btn {
@@ -611,7 +673,7 @@
         }
 
         .download-btn:hover {
-            background: rgba(255,255,255,0.05);
+            background: rgba(255, 255, 255, 0.05);
             border-color: var(--text-muted);
         }
 
@@ -651,9 +713,11 @@
             .container {
                 grid-template-columns: 1fr;
             }
+
             .upload-panel {
                 position: static;
             }
+
             .kpi-row {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -665,27 +729,34 @@
                 flex-wrap: wrap;
                 gap: 0.5rem;
             }
+
             .kpi-row {
                 grid-template-columns: 1fr 1fr;
             }
+
             .container {
                 padding: 1rem;
             }
-            td, th {
+
+            td,
+            th {
                 padding: 0.7rem 0.5rem;
             }
+
             .desc-cell {
                 max-width: 180px;
             }
         }
     </style>
 </head>
+
 <body>
 
     <header>
         <div class="header-left">
             <a href="dashboard.html" class="logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     <path d="M9 12l2 2 4-4"></path>
                 </svg>
@@ -698,7 +769,8 @@
             </div>
         </div>
         <a href="dashboard.html" class="nav-link">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
                 <path d="M15 18l-6-6 6-6"></path>
             </svg>
             Volver al Dashboard
@@ -709,7 +781,8 @@
         <!-- ================ SIDEBAR: Upload CSV ================ -->
         <div class="upload-panel" id="uploadPanel">
             <h2>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                     <polyline points="14 2 14 8 20 8"></polyline>
                     <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -717,7 +790,8 @@
                 </svg>
                 Catálogo de Productos
             </h2>
-            <p>Sube un archivo CSV con las descripciones de mercancías. La IA clasificará cada producto con su partida arancelaria (HS Code) automáticamente.</p>
+            <p>Sube un archivo CSV con las descripciones de mercancías. La IA clasificará cada producto con su partida
+                arancelaria (HS Code) automáticamente.</p>
 
             <div class="csv-format-hint">
                 <div class="header-line">ID_PRODUCTO,DESCRIPCION_MERCANCIA</div>
@@ -742,12 +816,13 @@
                 <div class="progress-bar-bg">
                     <div class="progress-fill" id="progressBar"></div>
                 </div>
-                <div class="progress-detail" id="progressDetail">Cargando qwen2.5-coder:7b...</div>
+                <div class="progress-detail" id="progressDetail">Cargando phi4:latest...</div>
                 <div class="progress-item-label" id="progressItem" style="display:none;"></div>
             </div>
 
             <button class="btn-primary" id="startBtn" disabled>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <polygon points="10 8 16 12 10 16 10 8"></polygon>
                 </svg>
@@ -755,7 +830,7 @@
             </button>
 
             <div class="model-info">
-                <span class="model-chip">qwen2.5-coder:7b</span>
+                <span class="model-chip">phi4:latest</span>
                 <span class="model-label">Modelo Local (Ollama)</span>
             </div>
         </div>
@@ -766,7 +841,8 @@
             <div class="empty-state" id="emptyState">
                 <div class="empty-state-icon">🔍</div>
                 <h3>Sin clasificaciones aún</h3>
-                <p>Sube un archivo CSV con tus productos para que la IA asigne las partidas arancelarias automáticamente.</p>
+                <p>Sube un archivo CSV con tus productos para que la IA asigne las partidas arancelarias
+                    automáticamente.</p>
             </div>
 
             <!-- KPIs (Hidden initially) -->
@@ -793,7 +869,8 @@
             <div class="table-container" id="tableContainer" style="display:none;">
                 <div class="table-header-row">
                     <h3>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                             <line x1="3" y1="9" x2="21" y2="9"></line>
                             <line x1="3" y1="15" x2="21" y2="15"></line>
@@ -802,7 +879,8 @@
                         Resultado de Clasificación IA
                     </h3>
                     <button class="download-btn" id="downloadBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
                             <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -961,7 +1039,7 @@
         }
 
         // ================================================================
-        // MOCK IA CLASSIFIER — Simula la respuesta de qwen2.5-coder:7b
+        // MOCK IA CLASSIFIER — Simula la respuesta de phi4:latest
         // ================================================================
         // En producción, esto se reemplazaría con una llamada fetch() al
         // backend Python clasificador.py que se comunica con Ollama.
@@ -1060,7 +1138,7 @@
             const resultados = [];
 
             // Fase 1: Preparación
-            updateProgress(0, total, 'Inicializando modelo IA...', 'Cargando qwen2.5-coder:7b en memoria...');
+            updateProgress(0, total, 'Inicializando modelo IA...', 'Cargando phi4:latest en memoria...');
             await sleep(800);
 
             updateProgress(0, total, 'Analizando catálogo...', `${total} productos detectados en el CSV`);
@@ -1228,4 +1306,5 @@
     </script>
 
 </body>
+
 </html>

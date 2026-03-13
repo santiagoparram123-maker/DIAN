@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/PYTHON-3.10+-F2C63C?style=for-the-badge&logo=python&logoColor=white">
   <img src="https://img.shields.io/badge/UI-HTML_Vanilla-E34F26?style=for-the-badge&logo=html5&logoColor=white">
   <img src="https://img.shields.io/badge/LIBRER%C3%8DA-SELENIUM-43B02A?style=for-the-badge&logo=selenium&logoColor=white">
-  <img src="https://img.shields.io/badge/AI-OLLAMA_QWEN-8A2BE2?style=for-the-badge&logo=meta&logoColor=white">
+  <img src="https://img.shields.io/badge/AI-OLLAMA_PHI-8A2BE2?style=for-the-badge&logo=meta&logoColor=white">
 </p>
 
 ---
@@ -20,7 +20,7 @@
 El **Auditor de Terceros y Cumplimiento DIAN** es un sistema Micro-SaaS B2B desarrollado para automatizar la auditoría de riesgos tributarios en proveedores de empresas.
 El propósito del trabajo es aplicar técnicas de cruce de bases de datos, web scraping avanzado y normalización de textos, tomando como referencia fuentes gubernamentales como el **Listado de Proveedores Ficticios de la DIAN** y el **Boletín de Deudores Morosos del Estado (BDME) del CHIP**.
 
-Además, incluye un módulo de **Auto-Clasificación Arancelaria Masiva** impulsado por IA local (`qwen2.5-coder:7b` vía Ollama), diseñado para agencias de aduanas que necesitan asignar automáticamente partidas arancelarias a catálogos enteros de productos importados a Colombia, reduciendo drásticamente el tiempo de clasificación manual.
+Además, incluye un módulo de **Auto-Clasificación Arancelaria Masiva** impulsado por IA local (`phi4:latest` vía Ollama), diseñado para agencias de aduanas que necesitan asignar automáticamente partidas arancelarias a catálogos enteros de productos importados a Colombia, reduciendo drásticamente el tiempo de clasificación manual.
 
 Este repositorio contiene la **estructura completa del proyecto**, archivos base, scripts modulares, y una interfaz de usuario (*Dashboard*) preparados para su ejecución y despliegue local.
 
