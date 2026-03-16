@@ -65,8 +65,8 @@ logger = logging.getLogger("ClasificadorArancelario")
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 # Nombre exacto del modelo a invocar.
-# IMPORTANTE: NO se usa OpenAI. Se usa qwen2.5-coder:7b via Ollama.
-MODELO_IA = "qwen2.5-coder:7b"
+# IMPORTANTE: Se usa phi4:latest via Ollama.
+MODELO_IA = "phi4:latest"
 
 # Columnas esperadas en el CSV de entrada del cliente
 COLUMNA_ID = "ID_PRODUCTO"
@@ -140,8 +140,10 @@ class BaseConocimientoAduanera:
     @lru_cache(maxsize=1000)
     def buscar_similares(self, descripcion: str, top_k: int = 10) -> str:
         """Busca y retorna como texto plano los registros más parecidos."""
-        if self._modelo_embeddings is None or self._df_historico is None:
-            return "No hay contexto disponible."
+        if self._modelo_embeddings is None:
+            return "CONTEXTO NO DISPONIBLE: Dependencias de ML faltantes o modelo no cargado."
+        if self._df_historico is None:
+            return "CONTEXTO NO DISPONIBLE: Base de conocimiento historico_dian.csv no encontrada."
             
         emb_query = self._modelo_embeddings.encode([descripcion])
         similitudes = cosine_similarity(emb_query, self._embeddings_base)[0]
@@ -229,10 +231,16 @@ def cargar_archivo(ruta_archivo: str) -> pd.DataFrame:
         mapping = {c.upper().strip(): c for c in df.columns}
         
         # Heurísticas de nombres de columnas
-        id_alias = next((c for k, c in mapping.items() if 'ID' in k or 'CODIGO' in k or 'REF' in k), None)
-        desc_alias = next((c for k, c in mapping.items() if 'DESC' in k or 'MERCANCIA' in k or 'PRODUCTO' in k), None)
+        id_alias = next((c for k, c in mapping.items() if any(word in k for word in ['ID', 'CODIGO', 'REF', 'PK'])), None)
+        desc_alias = next((c for k, c in mapping.items() if any(word in k for word in ['DESC', 'MERCANCIA', 'PRODUCTO', 'NAME', 'NOMBRE'])), None)
         
-        if not id_alias or not desc_alias:
+        # Si falta uno pero el otro no, intentamos asignar el que queda
+        if id_alias and not desc_alias:
+            # Si el archivo tiene más de una columna, tomamos una que no sea la de ID
+            desc_alias = next((c for c in df.columns if c != id_alias), df.columns[0])
+        elif desc_alias and not id_alias:
+            id_alias = next((c for c in df.columns if c != desc_alias), df.columns[0])
+        elif not id_alias and not desc_alias:
             logger.warning("No se encontraron columnas de ID y DESCRIPCION. Usando las dos primeras columnas como fallback.")
             if len(df.columns) >= 2:
                 id_alias = df.columns[0]
@@ -268,6 +276,16 @@ def clasificar_producto(descripcion: str) -> dict:
     if cache_key in _cache_clasificacion:
         logger.info(f"Cache HIT para: \"{descripcion[:40]}...\"")
         return _cache_clasificacion[cache_key]
+
+    # Detección de descripciones inválidas (solo números)
+    # Si la descripción es puramente numérica y tiene longitud de NIT (7-12)
+    if descripcion.strip().isdigit() and 7 <= len(descripcion.strip()) <= 12:
+        logger.warning(f"Posible error de mapeo: Se está intentando clasificar un número como descripción: {descripcion}")
+        return {
+            "hs_code": "ERROR_MAREO",
+            "confianza": "baja",
+            "razonamiento": "La descripción parece ser un NIT o un ID numérico, no una mercancía legible. Verifique las columnas del archivo."
+        }
 
     resultado_error = {"hs_code": "ERROR", "confianza": "error", "razonamiento": "Error processing request."}
 
@@ -486,6 +504,15 @@ def exportar_json(df: pd.DataFrame, ruta_salida: Optional[str] = None) -> str:
 
     return json_resultado
 
+
+# --- Inicialización Automática al Importar ---
+# Esto asegura que el modelo de embeddings se cargue al iniciar el servidor FastAPI
+try:
+    if "api" in sys.modules or "__main__" == __name__:
+        logger.info("Triggering early initialization of RAG Base de Conocimiento...")
+        BaseConocimientoAduanera.get_instance()
+except Exception as e:
+    logger.error(f"Error en inicialización temprana: {e}")
 
 # ============================================================================
 # PUNTO DE ENTRADA — Ejecución como script independiente (CLI)
