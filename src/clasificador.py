@@ -212,6 +212,15 @@ def cargar_archivo(ruta_archivo: str) -> pd.DataFrame:
             try:
                 # 1. Autodetección de delimitador
                 df = pd.read_csv(ruta_archivo, sep=None, engine='python', encoding='utf-8', on_bad_lines='skip')
+                # Validar que la autodetección no haya elegido un separador incorrecto:
+                # si más del 50% de las celdas son NaN, probablemente el separador fue erróneo
+                nan_ratio = df.isnull().sum().sum() / max(df.size, 1)
+                if nan_ratio > 0.5 or (len(df.columns) > 1 and df.iloc[:, 1:].isnull().all().all()):
+                    logger.info("Autodetección de separador sospechosa (muchos NaN). Re-intentando con coma...")
+                    df_comma = pd.read_csv(ruta_archivo, sep=',', encoding='utf-8', on_bad_lines='skip')
+                    nan_ratio_comma = df_comma.isnull().sum().sum() / max(df_comma.size, 1)
+                    if nan_ratio_comma < nan_ratio:
+                        df = df_comma
             except Exception:
                 try:
                     df = pd.read_csv(ruta_archivo, sep=None, engine='python', encoding='latin-1', on_bad_lines='skip')
@@ -371,7 +380,13 @@ def clasificar_producto(descripcion: str) -> dict:
 
         if codigo_encontrado:
             codigo = codigo_encontrado.group().ljust(10, '0')  # Rellenar a 10 dígitos
-            return {"hs_code": codigo, "confianza": "baja"}
+            resultado_fallback = {
+                "hs_code": codigo,
+                "confianza": "baja",
+                "razonamiento": f"Código extraído por regex del texto crudo del modelo. Respuesta original: {texto_generado[:120]}"
+            }
+            _cache_clasificacion[cache_key] = resultado_fallback
+            return resultado_fallback
 
         # Si nada funcionó, retornar error
         logger.error(f"No se pudo parsear la respuesta del modelo: {texto_generado}")

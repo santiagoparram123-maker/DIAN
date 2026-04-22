@@ -1,164 +1,164 @@
-<h1 align="center">📊 Auditor de Riesgo Aduanero B2B — AAA Agency of AI 🧠</h1>
+<h1 align="center">📊 B2B Customs Risk Auditor — AAA Agency of AI 🧠</h1>
 
 <p align="center">
-  <b>Motor de Due Diligence Fiscal · Prevención de Proveedores Ficticios · Clasificación Arancelaria IA</b><br>
-  <i>Micro-SaaS B2B — Cumplimiento DIAN · BDME · Facturadores Electrónicos</i>
+  <b>Tax Due Diligence Engine · Fictitious Suppliers Prevention · AI Tariff Classification</b><br>
+  <i>B2B Micro-SaaS — DIAN Compliance · BDME · Electronic Billers</i>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/STATUS-PRODUCCIÓN_MVP-00C851?style=for-the-badge&logo=github">
+  <img src="https://img.shields.io/badge/STATUS-PRODUCTION_MVP-00C851?style=for-the-badge&logo=github">
   <img src="https://img.shields.io/badge/PYTHON-3.10+-F2C63C?style=for-the-badge&logo=python&logoColor=white">
   <img src="https://img.shields.io/badge/API-FASTAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
-  <img src="https://img.shields.io/badge/IA-OLLAMA_QWEN2.5-8A2BE2?style=for-the-badge&logo=meta&logoColor=white">
+  <img src="https://img.shields.io/badge/AI-OLLAMA_QWEN2.5-8A2BE2?style=for-the-badge&logo=meta&logoColor=white">
   <img src="https://img.shields.io/badge/RAG-FAISS_+_MiniLM-FF6B35?style=for-the-badge">
   <img src="https://img.shields.io/badge/HARDWARE-CUDA_RTX_3050-76B900?style=for-the-badge&logo=nvidia&logoColor=white">
 </p>
 
 ---
 
-## 🧭 Descripción General
+## 🧭 Overview
 
-El **Auditor de Riesgo Aduanero B2B** es una herramienta core de la agencia **AAA Agency of AI**, diseñada para automatizar la auditoría de riesgos tributarios y la clasificación arancelaria de proveedores e importaciones en Colombia.
+The **B2B Customs Risk Auditor** is a core tool of the **AAA Agency of AI**, designed to automate tax risk auditing and tariff classification for suppliers and imports in Colombia.
 
-Opera como un **microservicio FastAPI** que combina tres motores principales:
+It operates as a **FastAPI microservice** that combines three main engines:
 
-1. **Motor de Due Diligence Fiscal** — Cruza NITs contra el Listado de Proveedores Ficticios (DIAN), el BDME (CHIP) y la base de Facturadores Electrónicos, generando matrices de riesgo (`ALTO` / `MEDIO` / `REVISAR` / `BAJO`) según el PDR del sistema.
-2. **Clasificador Arancelario IA** — Asigna automáticamente Partidas HS Code a catálogos de importación usando `qwen2.5-coder:7b` vía Ollama con un pipeline RAG (Retrieval-Augmented Generation) acelerado por CUDA.
-3. **Generador de Reportes** — Produce reportes Excel con formatos condicionales de color y PDFs con razonamiento del modelo IA.
+1. **Tax Due Diligence Engine** — Cross-references NITs (Tax Identification Numbers) against the Fictitious Suppliers List (DIAN), the BDME (Defaulting Debtors Bulletin / CHIP), and the Electronic Billers database, generating risk matrices (`HIGH` / `MEDIUM` / `REVIEW` / `LOW`) according to the system's PDR.
+2. **AI Tariff Classifier** — Automatically assigns HS Code headings to import catalogs using `qwen2.5-coder:7b` via Ollama with a CUDA-accelerated RAG (Retrieval-Augmented Generation) pipeline.
+3. **Report Generator** — Produces Excel reports with conditional color formatting and PDFs containing the AI model's reasoning.
 
-> 💡 **Propuesta de valor:** No es "automatización" — es **prevención de multas y protección del patrimonio empresarial**. El cliente ideal (agencias de carga, e-commerce, empresas con muchos proveedores) ya siente el dolor y ya tiene el presupuesto para resolverlo.
+> 💡 **Value Proposition:** It's not just "automation" — it's **fine prevention and corporate asset protection**. The ideal client (freight forwarders, e-commerce, companies with many suppliers) already feels the pain and has the budget to solve it.
 
 ---
 
-## 📂 Estructura del Proyecto
+## 📂 Project Structure
 
 ```text
 DIAN_Auditor_B2B
 ┣ 📂 api
-┃ ┗ 📜 main.py              # Microservicio FastAPI (auditar-json, clasificar-masivo, generar-reporte-pdf)
+┃ ┗ 📜 main.py              # FastAPI Microservice (audit-json, mass-classify, generate-pdf-report)
 ┣ 📂 data
-┃ ┣ 📂 raw                  # Proveedores-Ficticios-DIAN.xlsx (fuente oficial)
-┃ ┣ 📂 samples              # Archivos de prueba (prueba_01/02/03)
-┃ ┣ 📜 historico_dian.csv   # Knowledge base para el RAG
+┃ ┣ 📂 raw                  # Proveedores-Ficticios-DIAN.xlsx (official source)
+┃ ┣ 📂 samples              # Test files (test_01/02/03)
+┃ ┣ 📜 historico_dian.csv   # Knowledge base for RAG
 ┃ ┣ 📜 dian_ficticios.parquet
 ┃ ┗ 📜 bdme_cache.parquet
 ┣ 📂 docs
-┃ ┗ 📜 PDR_Auditor_DIAN.docx  # Project Definition Record (Arquitectura + Guardrails)
-┣ 📂 outputs               # Reportes generados (Excel + PDF)
-┣ 📂 src                   # Núcleo de negocio (Core — NO modificar sin PDR)
+┃ ┗ 📜 PDR_Auditor_DIAN.docx  # Project Definition Record (Architecture + Guardrails)
+┣ 📂 outputs               # Generated reports (Excel + PDF)
+┣ 📂 src                   # Business core (Core — DO NOT modify without PDR)
 ┃ ┣ 📜 clasificador.py     # RAG + Ollama qwen2.5-coder:7b + CUDA + LRU Cache
-┃ ┣ 📜 report_engine.py    # Motor de auditoría de NITs con matriz de riesgo PDR
-┃ ┣ 📜 dian_processor.py   # Procesador Polars de la base DIAN
-┃ ┣ 📜 bdme_scraper.py     # Scraper BDME (CHIP)
-┃ ┗ 📜 utils.py            # normalize_nit() — 9 dígitos, llave primaria PDR
-┣ 📜 dashboard.html        # Portal de Auditoría de Terceros (Dark Theme B2B)
-┣ 📜 clasificador.html     # Portal de Clasificación IA Masiva
+┃ ┣ 📜 report_engine.py    # NIT audit engine with PDR risk matrix
+┃ ┣ 📜 dian_processor.py   # Polars processor for DIAN database
+┃ ┣ 📜 bdme_scraper.py     # BDME Scraper (CHIP)
+┃ ┗ 📜 utils.py            # normalize_nit() — 9 digits, PDR primary key
+┣ 📜 dashboard.html        # Third-Party Audit Portal (B2B Dark Theme)
+┣ 📜 clasificador.html     # Mass AI Classification Portal
 ┣ 📜 requirements.txt
 ┗ 📜 README.md
 ```
 
 ---
 
-## 💻 Stack Tecnológico
+## 💻 Tech Stack
 
-| Tecnología | Descripción |
+| Technology | Description |
 | :--- | :--- |
-| **Python 3.10+** | Backend, procesamiento de datos y ML |
-| **FastAPI + Uvicorn** | API asíncrona con documentación Swagger automática |
-| **Ollama / qwen2.5-coder:7b** | Modelo de IA local para clasificación arancelaria |
-| **FAISS + SentenceTransformers** | Pipeline RAG — top_k=10, similaridad coseno |
-| **Polars + Pandas** | Procesamiento out-of-core de bases de datos masivas |
-| **CUDA (RTX 3050)** | Aceleración GPU para embeddings y modelo IA |
-| **fpdf2** | Generación de reportes PDF profesionales con razonamiento IA |
-| **openpyxl + xlrd** | Compatibilidad universal Excel (XLS, XLSX, CSV-in-Excel) |
-| **Selenium** | Consultas resilientes al BDME/CHIP |
+| **Python 3.10+** | Backend, data processing, and ML |
+| **FastAPI + Uvicorn** | Asynchronous API with automatic Swagger documentation |
+| **Ollama / qwen2.5-coder:7b** | Local AI model for tariff classification |
+| **FAISS + SentenceTransformers** | RAG Pipeline — top_k=10, cosine similarity |
+| **Polars + Pandas** | Out-of-core processing for massive databases |
+| **CUDA (RTX 3050)** | GPU acceleration for embeddings and AI model |
+| **fpdf2** | Professional PDF report generation with AI reasoning |
+| **openpyxl + xlrd** | Universal Excel compatibility (XLS, XLSX, CSV-in-Excel) |
+| **Selenium** | Resilient queries to BDME/CHIP |
 
 ---
 
-## 🧠 Pipeline RAG — Clasificador Arancelario
+## 🧠 RAG Pipeline — Tariff Classifier
 
 ```
-Catálogo CSV/XLSX → cargar_archivo()
-         ↓ (detección magic bytes + CSV-in-Excel)
-    pd.DataFrame (ID, DESCRIPCIÓN)
+CSV/XLSX Catalog → load_file()
+         ↓ (magic bytes detection + CSV-in-Excel)
+    pd.DataFrame (ID, DESCRIPTION)
          ↓
   SentenceTransformer.encode() [CUDA]
   + LRU Cache (maxsize=1000)
          ↓
-  FAISS.search(top_k=10) → Ejemplos DIAN similares
+  FAISS.search(top_k=10) → Similar DIAN examples
          ↓
   Ollama qwen2.5-coder:7b
-  [System Prompt + RAG Context + Producto]
+  [System Prompt + RAG Context + Product]
          ↓
-  JSON → {hs_code, confianza, razonamiento}
+  JSON → {hs_code, confidence, reasoning}
 ```
 
 ---
 
-## 🎯 Lógica de Riesgo (PDR — Sección 2.3)
+## 🎯 Risk Logic (PDR — Section 2.3)
 
-| Condición | Nivel | Acción |
+| Condition | Level | Action |
 | :--- | :---: | :--- |
-| NIT en Listado Ficticios DIAN | 🔴 **ALTO** | Bloquear pago + alerta inmediata |
-| BDME en mora **o** Facturador inactivo | 🟠 **MEDIO** | Revisar con asesor tributario |
-| Consulta BDME falló/indeterminada | 🟣 **REVISAR** | Verificar manualmente |
-| Sin alertas | 🟢 **BAJO** | Proveedor verificado |
+| NIT in DIAN Fictitious List | 🔴 **HIGH** | Block payment + immediate alert |
+| BDME in default **or** inactive biller | 🟠 **MEDIUM** | Review with tax advisor |
+| BDME query failed/indeterminate | 🟣 **REVIEW** | Verify manually |
+| No alerts | 🟢 **LOW** | Verified supplier |
 
-> ⚠️ La lógica de riesgo es dictaminada **exclusivamente por el backend** (`calculate_risk()` en `src/report_engine.py`). El frontend nunca recalcula el riesgo localmente.
+> ⚠️ The risk logic is dictated **exclusively by the backend** (`calculate_risk()` in `src/report_engine.py`). The frontend never recalculates the risk locally.
 
 ---
 
-## ⚙️ Instalación y Ejecución
+## ⚙️ Installation and Execution
 
-**1️⃣ Entorno**
+**1️⃣ Environment**
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**2️⃣ Modelo IA Local (Ollama)**
+**2️⃣ Local AI Model (Ollama)**
 ```bash
 ollama pull qwen2.5-coder:7b
 ollama serve
 ```
 
-**3️⃣ Servidor API**
+**3️⃣ API Server**
 ```bash
 python api/main.py
 # Swagger: http://localhost:8000/docs
 ```
 
-**4️⃣ Abrir Interfaces**
-- `dashboard.html` — Auditoría masiva de NITs
-- `clasificador.html` — Clasificación arancelaria IA
+**4️⃣ Open Interfaces**
+- `dashboard.html` — Mass NIT auditing
+- `clasificador.html` — AI tariff classification
 
 ---
 
-## 🧩 Estado del Proyecto (MVP)
+## 🧩 Project Status (MVP)
 
-| Componente | Estado |
+| Component | Status |
 | :---: | :---: |
-| 🚀 **API FastAPI + Endpoints** | ✅ |
-| 🧠 **Clasificador IA RAG (qwen2.5)** | ✅ |
-| 🔍 **Auditor NITs (DIAN + BDME)** | ✅ |
-| 📄 **Reporte PDF con Razonamiento IA** | ✅ |
-| 📊 **Reporte Excel con Colores** | ✅ |
-| 🎨 **Dashboard Dark Theme B2B** | ✅ |
-| 🔢 **Compatibilidad Universal (XLS/XLSX/CSV/CSV-in-Excel)** | ✅ |
-| ⚡ **Aceleración CUDA RTX 3050** | ✅ |
+| 🚀 **FastAPI API + Endpoints** | ✅ |
+| 🧠 **RAG AI Classifier (qwen2.5)** | ✅ |
+| 🔍 **NIT Auditor (DIAN + BDME)** | ✅ |
+| 📄 **PDF Report with AI Reasoning** | ✅ |
+| 📊 **Excel Report with Colors** | ✅ |
+| 🎨 **B2B Dark Theme Dashboard** | ✅ |
+| 🔢 **Universal Compatibility (XLS/XLSX/CSV/CSV-in-Excel)** | ✅ |
+| ⚡ **CUDA RTX 3050 Acceleration** | ✅ |
 
 ---
 
-## 👥 Autores
+## 👥 Authors
 
-| Integrante | Rol |
+| Member | Role |
 | :--- | :--- |
-| 👨‍💻 **Santiago Parra** | Arquitectura, Lógica de Riesgos, PDR y Dirección |
-| 🤖 **Antigravity AI** | Implementación Backend/Frontend, RAG, Testing |
+| 👨‍💻 **Santiago Parra** | Architecture, Risk Logic, PDR, and Direction |
+| 🤖 **Antigravity AI** | Backend/Frontend Implementation, RAG, Testing |
 
 ---
 
-## 📄 Licencia
+## 📄 License
 
-Distribuido bajo licencia **MIT**. Libre para uso privado y comercial con atribución a los autores originales.
+Distributed under the **MIT** license. Free for private and commercial use with attribution to the original authors.
